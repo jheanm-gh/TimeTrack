@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Build output
+build/
+dist/
+*.manifest
+
+# Local scratch / generated artefacts
+scratch/
+demo/
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
+*.csv
+!docs/**/*.xlsx

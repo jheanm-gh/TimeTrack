@@ -1,0 +1,5 @@
+# Development / build-time only. Not needed to run the app from source.
+-r requirements.txt
+
+pytest==8.4.2
+pyinstaller==6.22.3
