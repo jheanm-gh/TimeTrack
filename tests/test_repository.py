@@ -560,3 +560,27 @@ class TestQueries:
         assert len(repo.list_entries(project_id=project)) == 1
         assert len(repo.list_entries(kind=EntryKind.WORK)) == 2
         assert len(repo.list_entries(kind=EntryKind.SOFTWARE)) == 0
+
+
+class TestProjectOrdering:
+    """Archived projects must never lead a picker.
+
+    Anything that defaults to the first project in the list - the Review &
+    Submit tab does - would otherwise open on a closed-out job with no
+    current time in it, and look empty and broken.
+    """
+
+    def test_archived_projects_sort_after_active_ones(self, repo):
+        # 'Archived' sorts before 'Kloof' alphabetically, so name order alone
+        # would put it first.
+        archived = repo.add_project("Archived Old Job")
+        active = repo.add_project("Kloof Tailings Dam")
+        repo.archive_project(archived)
+
+        listed = repo.list_projects(include_archived=True)
+        assert [row["id"] for row in listed] == [active, archived]
+
+    def test_active_projects_still_sort_by_name(self, repo):
+        second = repo.add_project("Zebra Project")
+        first = repo.add_project("Alpha Project")
+        assert [row["id"] for row in repo.list_projects()] == [first, second]

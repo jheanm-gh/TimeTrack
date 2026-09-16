@@ -4,9 +4,9 @@ A small, offline, single-user timesheet companion for Windows. It makes it
 trivial to start a timer when work begins, and produces a spreadsheet to read
 off while filling in a timesheet on a company intranet.
 
-> **Build status: Phase 1 of 5 complete.** The database, the billing
-> calculations and the test suite are finished and passing. The window, the
-> workbook and the packaged application come next. See
+> **Build status: Phase 2 of 5 complete.** The database, the billing
+> calculations and the window all work. Run it with `python -m app`. The
+> spreadsheet and the packaged application come next. See
 > [Build phases](#build-phases).
 
 ## The one rule that matters
@@ -52,15 +52,23 @@ pip install -r requirements-dev.txt
 On Linux or macOS, substitute `python3.12 -m venv .venv` and
 `source .venv/bin/activate`.
 
+### Run the application
+
+```powershell
+python -m app
+```
+
 ### Run the tests
 
 ```powershell
 python -m pytest
 ```
 
-254 tests, under a second. They cover the rounding rule exhaustively,
-including exact boundaries, single-second crossings and the floating-point
-traps described below.
+311 tests, about two seconds. They cover the rounding rule exhaustively -
+exact boundaries, single-second crossings, the floating-point traps described
+below - plus the timer channels, idle detection, clock jumps and the widgets
+themselves. The widget tests render into memory rather than onto a screen, so
+they need no display.
 
 ### Build a demo database
 
@@ -87,7 +95,8 @@ through one real day from that demo database.
 | `app/paths.py` | Where files live on disk.                                     |
 | `app/seed.py`  | Demo data generator (development only).                       |
 | `app/explain.py` | Plain-English walkthrough of the maths.                     |
-| `app/ui/`      | PySide6 window — *phase 2*.                                   |
+| `app/services/`| The operating system: idle counter, clocks, Startup folder.    |
+| `app/ui/`      | PySide6 window, tabs, dialogs and tray icon.                   |
 | `app/export/`  | Workbook generation — *phase 3*.                              |
 
 `app/core` is pure by design: every billing figure can be unit tested without
@@ -132,6 +141,31 @@ A partial unique index makes two running work timers impossible, so no GUI bug
 can produce them. The two channels are independent and additive: software hours
 may exceed work hours on a day, or occur with no work hours at all.
 
+**The elapsed display is driven by the monotonic clock, the stored
+timestamps by the wall clock.** They fail differently: the wall clock jumps
+when NTP corrects it or the laptop wakes, and the monotonic clock has no idea
+what time it is. The two are anchored together and watched for drift; drift
+beyond five seconds means the wall clock moved, and the anchor is reset. A
+running timer therefore never leaps or counts backwards on screen.
+
+**Pausing and the idle prompt are separate ideas.** Pause is something the
+user does. The idle prompt is something the application notices - and it only
+ever *asks*. It fires when the user comes back, not when they leave, because
+the length of an absence is not known until it ends, and a dialog raised at an
+empty desk is just a dialog waiting to be dismissed on reflex.
+
+**The software channel is never idle-checked and never auto-stopped.** An
+unattended overnight analysis is real licensed-software usage.
+
+**Settings is a fifth tab.** The brief lists four, then refers to Settings
+repeatedly - the workbook folder picker, the backups panel, the startup
+toggle, the switch that reverses a "don't ask again". A tab is easier to find
+again than a menu item.
+
+**The tray icon encodes state by shape as well as colour** - a split disc for
+both timers running, pause bars when paused - so it is still readable without
+colour vision.
+
 **Tick-off state lives on `daily_notes`.** That table is already keyed by
 project and date, which is exactly the grain the tick needs, so it carries a
 `ticked_at` column rather than justifying a table of its own.
@@ -163,8 +197,8 @@ guesses and should be checked against the real intranet form:
 | Phase | Scope                                                       | State |
 | ----- | ----------------------------------------------------------- | ----- |
 | 1     | Schema, migrations, calculations, repository, tests, demo   | Done  |
-| 2     | Window, tabs, timers, tray, idle detection, crash recovery  | Next  |
-| 3     | Workbook: six sheets, autosave, file locking, backups       | —     |
+| 2     | Window, tabs, timers, tray, idle detection, crash recovery  | Done  |
+| 3     | Workbook: six sheets, autosave, file locking, backups       | Next  |
 | 4     | Packaging, shortcuts, startup integration                   | —     |
 | 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | —     |
 

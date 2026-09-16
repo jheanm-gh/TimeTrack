@@ -116,6 +116,11 @@ class Interval:
         """Return this interval with an open end closed off at ``now``."""
         if self.end is not None:
             return self
+        if now is None:
+            raise ValueError(
+                "this interval is still open (a running timer), so measuring "
+                "it needs a 'now' - pass now=... to the calculation"
+            )
         return Interval(self.start, max(self.start, now))
 
     def seconds(self, now: _dt.datetime | None = None) -> int:

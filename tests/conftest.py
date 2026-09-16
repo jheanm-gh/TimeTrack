@@ -6,6 +6,13 @@ other's data and the suite leaves nothing behind on disk.
 
 from __future__ import annotations
 
+import os
+
+# Must happen before anything imports PySide6: it tells Qt to render into
+# memory instead of looking for a display, so `pytest` works unchanged on a
+# build server or over SSH.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import datetime as _dt
 from zoneinfo import ZoneInfo
 
@@ -53,3 +60,49 @@ def sast(year, month, day, hour=0, minute=0, second=0) -> _dt.datetime:
 
 def utc(year, month, day, hour=0, minute=0, second=0) -> _dt.datetime:
     return _dt.datetime(year, month, day, hour, minute, second, tzinfo=UTC)
+
+
+# --------------------------------------------------------------------------
+# GUI fixtures
+#
+# The widget tests run against Qt's "offscreen" platform, so they need no
+# display and can run on a build server. One QApplication is shared by the
+# whole session because Qt refuses to create a second one.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    pytest.importorskip("PySide6", reason="PySide6 is not installed")
+    from PySide6.QtWidgets import QApplication
+
+    existing = QApplication.instance()
+    if existing is not None:
+        yield existing
+        return
+    application = QApplication([])
+    yield application
+    application.quit()
+
+
+@pytest.fixture
+def window(qapp, repo, tmp_path, monkeypatch):
+    """A real MainWindow wired to a throwaway database."""
+    from PySide6.QtCore import QSettings
+
+    from app.ui.main_window import MainWindow
+
+    # Keep window geometry out of the developer's real settings store.
+    monkeypatch.setattr(
+        QSettings, "value", lambda self, *args, **kwargs: None, raising=False
+    )
+    monkeypatch.setattr(
+        QSettings, "setValue", lambda self, *args, **kwargs: None, raising=False
+    )
+
+    main = MainWindow(repo)
+    main.hide()
+    yield main
+    main.timers.shutdown()
+    main.tray.hide()
+    main.deleteLater()

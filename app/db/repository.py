@@ -366,10 +366,19 @@ class Repository:
         ).fetchone()
 
     def list_projects(self, include_archived: bool = False) -> list[sqlite3.Row]:
+        """Projects for the pickers and lists.
+
+        Archived projects always sort *after* active ones. Sorting purely by
+        name would put a closed-out job at the top of every dropdown, and
+        anything that defaults to the first entry - the Review tab, for
+        instance - would open on a project with no current time in it.
+        """
         sql = "SELECT * FROM projects"
         if not include_archived:
             sql += " WHERE status = 'active'"
-        sql += " ORDER BY sort_order, name COLLATE NOCASE"
+        sql += (
+            " ORDER BY (status = 'archived'), sort_order, name COLLATE NOCASE"
+        )
         return list(self.conn.execute(sql))
 
     def project_names(self) -> dict[int, str]:
