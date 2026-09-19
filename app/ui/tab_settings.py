@@ -33,6 +33,7 @@ from app.core.models import RoundingDirection
 from app.db.repository import Repository
 from app.services import idle as idle_module
 from app.services import startup as startup_module
+from app.services.backup import SETTING_WORKBOOK_LAST, describe_backups
 from app.ui import theme
 from app.ui.dialogs import warn
 
@@ -55,6 +56,7 @@ class SettingsTab(QWidget):
         inner_layout.addWidget(self._rounding_group())
         inner_layout.addWidget(self._idle_group())
         inner_layout.addWidget(self._windows_group())
+        inner_layout.addWidget(self._workbook_group())
         inner_layout.addWidget(self._files_group())
         inner_layout.addStretch(1)
 
@@ -156,6 +158,34 @@ class SettingsTab(QWidget):
         self.confirm_close.toggled.connect(self._save_startup_options)
         return group
 
+    def _workbook_group(self) -> QGroupBox:
+        group = QGroupBox("The spreadsheet")
+        self.autosave_enabled = QCheckBox("Keep the spreadsheet up to date by itself")
+        self.autosave_minutes = QSpinBox()
+        self.autosave_minutes.setRange(1, 720)
+        self.autosave_minutes.setSuffix(" minutes")
+        self.per_project_sheets = QCheckBox("Also make one tab per project")
+
+        note = QLabel(
+            "The spreadsheet is also rewritten a couple of minutes after you "
+            "change anything, and again when you close TimeTrack. If you have "
+            "it open in Excel, TimeTrack waits and tries again rather than "
+            "leaving copies lying about."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+
+        form = QFormLayout(group)
+        form.addRow("", self.autosave_enabled)
+        form.addRow("Save every", self.autosave_minutes)
+        form.addRow("", self.per_project_sheets)
+        form.addRow("", note)
+
+        self.autosave_enabled.toggled.connect(self._save_workbook_settings)
+        self.autosave_minutes.valueChanged.connect(self._save_workbook_settings)
+        self.per_project_sheets.toggled.connect(self._save_workbook_settings)
+        return group
+
     def _files_group(self) -> QGroupBox:
         group = QGroupBox("Where your files are")
         self.workbook_path = QLineEdit()
@@ -225,6 +255,16 @@ class SettingsTab(QWidget):
                     "Starting with Windows is only available on Windows."
                 )
 
+            self.autosave_enabled.setChecked(
+                self.repo.get_bool("workbook.autosave_enabled", True)
+            )
+            self.autosave_minutes.setValue(
+                self.repo.get_int("workbook.autosave_minutes", 30)
+            )
+            self.per_project_sheets.setChecked(
+                self.repo.get_bool("workbook.per_project_sheets", True)
+            )
+
             configured = self.repo.get_setting("workbook.path") or ""
             self.workbook_path.setText(configured or str(paths.default_workbook_dir()))
             self._refresh_locations()
@@ -235,14 +275,25 @@ class SettingsTab(QWidget):
         lines = [f"{name}: {value}" for name, value in paths.describe_locations().items()]
         self.locations.setText("\n".join(lines))
 
-        backup_dir = paths.backup_dir()
-        workbook_backups = sorted(backup_dir.glob("TimeLog_*.xlsx"))
-        db_backups = sorted(paths.db_backup_dir().glob("timetrack_*.db"))
-        self.backups_label.setText(
-            f"{len(workbook_backups)} weekly spreadsheet backups, "
-            f"{len(db_backups)} daily database backups.\n"
-            "Automatic backups begin once the spreadsheet is switched on."
-        )
+        counts = describe_backups(paths.backup_dir(), paths.db_backup_dir())
+
+        def describe(count: int, noun: str, newest: str | None) -> str:
+            plural = "" if count == 1 else "s"
+            tail = f", newest {newest}" if newest else ""
+            return f"{count} {noun} backup{plural}{tail}"
+
+        lines = [
+            describe(
+                counts["workbook_count"], "weekly spreadsheet", counts["workbook_latest"]
+            ),
+            describe(
+                counts["database_count"], "daily database", counts["database_latest"]
+            ),
+        ]
+        last_workbook = self.repo.get_setting(SETTING_WORKBOOK_LAST)
+        if last_workbook:
+            lines.append(f"Last weekly backup taken on {last_workbook}.")
+        self.backups_label.setText("\n".join(lines))
 
     def _save_rounding(self) -> None:
         if self._loading:
@@ -259,6 +310,21 @@ class SettingsTab(QWidget):
             return
         self.repo.set_setting("idle.enabled", "1" if self.idle_enabled.isChecked() else "0")
         self.repo.set_setting("idle.threshold_minutes", str(self.idle_threshold.value()))
+        self.settings_changed.emit()
+
+    def _save_workbook_settings(self) -> None:
+        if self._loading:
+            return
+        self.repo.set_setting(
+            "workbook.autosave_enabled", "1" if self.autosave_enabled.isChecked() else "0"
+        )
+        self.repo.set_setting(
+            "workbook.autosave_minutes", str(self.autosave_minutes.value())
+        )
+        self.repo.set_setting(
+            "workbook.per_project_sheets",
+            "1" if self.per_project_sheets.isChecked() else "0",
+        )
         self.settings_changed.emit()
 
     def _save_startup_options(self) -> None:

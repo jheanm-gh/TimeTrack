@@ -100,9 +100,16 @@ def window(qapp, repo, tmp_path, monkeypatch):
         QSettings, "setValue", lambda self, *args, **kwargs: None, raising=False
     )
 
+    # Point the workbook at a throwaway folder and keep saves inline. Without
+    # this the tests would write a real spreadsheet into the developer's
+    # Documents folder and spawn worker threads against the live database.
+    repo.set_setting("workbook.path", str(tmp_path / "workbook"))
+
     main = MainWindow(repo)
+    main.autosave.synchronous = True
     main.hide()
     yield main
     main.timers.shutdown()
+    main.autosave.shutdown()
     main.tray.hide()
     main.deleteLater()

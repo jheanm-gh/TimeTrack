@@ -9,12 +9,15 @@ user comes back to the keyboard after a break.
 from __future__ import annotations
 
 import datetime as _dt
+import os as _os
+import pathlib as _pathlib
 
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -24,12 +27,13 @@ from app import paths
 from app.core.calc import (
     ValidationError,
     build_idle_adjustment,
-    recent_window,
     weekday_gaps,
 )
+from app.export.gather import gap_window
 from app.core.models import EntryKind, IdleDecision, RecoveryDecision
 from app.core.timeutil import format_hm, to_local
 from app.db.repository import Repository
+from app.services.autosave import AutosaveService
 from app.services.timers import TimerService
 from app.ui import theme
 from app.ui.dialogs import CloseDialog, RecoveryDialog, warn
@@ -53,6 +57,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.repo = repo
         self.timers = TimerService(repo, self)
+        self.autosave = AutosaveService(repo, self)
         self.settings = QSettings(ORGANISATION, APP_NAME)
         self._really_quitting = False
         self._idle_dialog_open = False
@@ -66,6 +71,7 @@ class MainWindow(QMainWindow):
         self._restore_geometry()
 
         self.timers.start()
+        self.autosave.start()
         self.refresh_all()
         self._offer_recovery()
         self._show_startup_banners()
@@ -107,8 +113,15 @@ class MainWindow(QMainWindow):
 
         self.status_left = QLabel()
         self.status_right = QLabel()
+        self.save_now_button = QPushButton("Save spreadsheet now")
+        self.save_now_button.setToolTip(
+            "Rewrite the spreadsheet immediately, without waiting for the "
+            "next automatic save"
+        )
+        self.save_now_button.clicked.connect(self.autosave.save_now)
         self.statusBar().addWidget(self.status_left, 1)
         self.statusBar().addPermanentWidget(self.status_right)
+        self.statusBar().addPermanentWidget(self.save_now_button)
         self._update_status_bar()
 
         self.tray = Tray(self)
@@ -128,13 +141,19 @@ class MainWindow(QMainWindow):
 
         for tab in (self.today_tab, self.projects_tab, self.log_tab, self.review_tab):
             tab.data_changed.connect(self.refresh_all)
+            tab.data_changed.connect(self.autosave.schedule)
+        # Stopping a timer writes an entry, so it counts as a change too.
+        self.timers.state_changed.connect(self.autosave.schedule)
         self.settings_tab.settings_changed.connect(self._on_settings_changed)
 
         self.tray.open_requested.connect(self.show_and_raise)
         self.tray.start_last_requested.connect(self._start_last)
         self.tray.stop_all_requested.connect(self._stop_all)
         self.tray.quit_requested.connect(self.quit_application)
-        self.tray.save_workbook_requested.connect(self._save_workbook_placeholder)
+        self.tray.save_workbook_requested.connect(self.autosave.save_now)
+
+        self.autosave.status_changed.connect(lambda _text: self._update_status_bar())
+        self.autosave.saved.connect(self._on_workbook_saved)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
@@ -178,6 +197,7 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self) -> None:
         self.timers.reload_settings()
+        self.autosave.reload_settings()
         self.refresh_all()
 
     def _update_tray(self) -> None:
@@ -210,14 +230,51 @@ class MainWindow(QMainWindow):
             )
         )
 
+    @staticmethod
+    def _short_path(path: _pathlib.Path, keep: int = 3) -> str:
+        """Trim a long path to its last few parts for the status bar.
+
+        The full path is still one hover away, and Settings lists it in full
+        for handing to an IT department.
+        """
+        parts = path.parts
+        # +1 for the root or drive letter: shortening "/tmp/a/file" to
+        # ".../tmp/a/file" makes it longer, not shorter.
+        if len(parts) <= keep + 1:
+            return str(path)
+        return f"\u2026{_os.sep}{_pathlib.Path(*parts[-keep:])}"
+
     def _update_status_bar(self) -> None:
-        self.status_left.setText(f"Database: {paths.db_path()}")
-        workbook = self.repo.get_setting("workbook.path") or str(
-            paths.default_workbook_dir()
+        database = paths.db_path()
+        workbook = self.autosave.target
+        self.status_left.setText(
+            f"Database: {self._short_path(database)}    "
+            f"Spreadsheet: {self._short_path(workbook)}"
         )
-        self.status_right.setText(
-            f"Spreadsheet: {workbook}   |   Not yet saved (coming in the next step)"
+        self.status_left.setToolTip(
+            f"Database: {database}\nSpreadsheet: {workbook}"
         )
+        self.status_right.setText(self.autosave.status_text())
+
+    def _on_workbook_saved(self, outcome) -> None:
+        """Only interrupt when there is genuinely something to tell.
+
+        A quiet skip because Excel has the file open is shown in the status
+        bar and nowhere else; a fallback save or a real failure gets said out
+        loud, because the brief asks that it never fail silently.
+        """
+        self._update_status_bar()
+        if not outcome.needs_telling:
+            return
+        if outcome.saved and outcome.fell_back:
+            QMessageBox.information(self, "Saved under a different name", outcome.message)
+        else:
+            QMessageBox.warning(
+                self,
+                "The spreadsheet could not be saved",
+                outcome.message
+                + "\n\nYour time is still recorded safely in the database.",
+            )
 
     # -- banners ----------------------------------------------------------
 
@@ -256,9 +313,12 @@ class MainWindow(QMainWindow):
             self.banner_area.addWidget(banner)
 
         window_days = self.repo.get_int("ui.catchup_days", 30)
-        start, end = recent_window(today, window_days)
-        recorded = self.repo.recorded_dates(start, end)
-        gaps = weekday_gaps(recorded, start, end, today=today)
+        window = gap_window(self.repo, today, window_days)
+        gaps: list[_dt.date] = []
+        if window is not None:
+            start, end = window
+            recorded = self.repo.recorded_dates(start, end)
+            gaps = weekday_gaps(recorded, start, end, today=today)
         if gaps:
             banner = Banner(
                 f"<b>{len(gaps)} weekdays have no time logged</b> in the last "
@@ -303,15 +363,6 @@ class MainWindow(QMainWindow):
 
     def _stop_all(self) -> None:
         self.timers.stop_all()
-
-    def _save_workbook_placeholder(self) -> None:
-        QMessageBox.information(
-            self,
-            "Not built yet",
-            "Saving the spreadsheet arrives in the next step of the build.\n\n"
-            "Everything you record now is already stored safely in the "
-            "database, so nothing will be lost.",
-        )
 
     # -- idle and recovery ------------------------------------------------
 
@@ -477,9 +528,13 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
     def _shutdown(self) -> None:
-        """Stop cleanly: no timer is ever left running into a closed app."""
+        """Stop cleanly: no timer left running, and the workbook written."""
         self._save_geometry()
         if self.timers.any_running():
             self.timers.stop_all()
         self.timers.shutdown()
+        # Stopping the timers above may have just written an entry, so the
+        # save has to come after them, not before.
+        self.autosave.save_on_exit()
+        self.autosave.shutdown()
         self.tray.hide()

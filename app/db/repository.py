@@ -640,6 +640,25 @@ class Repository:
                     )
         return {day for day in dates if start <= day <= end}
 
+    def first_entry_date(self, tz: _dt.tzinfo | None = None) -> _dt.date | None:
+        """The earliest local date with any recorded entry, or ``None``.
+
+        Used to stop the catch-up nudge and the Gaps sheet reporting every
+        weekday that passed before the application was installed. On day one
+        a sixty-day window would otherwise announce forty missing days, and
+        a banner that is wrong the first time it appears never gets read
+        again.
+        """
+        row = self.conn.execute(
+            """
+            SELECT MIN(started_at) AS earliest FROM time_entries
+            WHERE deleted_at IS NULL
+            """
+        ).fetchone()
+        if row is None or row["earliest"] is None:
+            return None
+        return local_date(from_iso(row["earliest"]), tz or self.timezone())
+
     def software_names(self, limit: int = 30) -> list[str]:
         """Previously used package names, most recent first, for the dropdown."""
         rows = self.conn.execute(

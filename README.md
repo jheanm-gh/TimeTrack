@@ -4,9 +4,9 @@ A small, offline, single-user timesheet companion for Windows. It makes it
 trivial to start a timer when work begins, and produces a spreadsheet to read
 off while filling in a timesheet on a company intranet.
 
-> **Build status: Phase 2 of 5 complete.** The database, the billing
-> calculations and the window all work. Run it with `python -m app`. The
-> spreadsheet and the packaged application come next. See
+> **Build status: Phase 3 of 5 complete.** The database, the billing
+> calculations, the window and the spreadsheet all work. Run it with
+> `python -m app`. Packaging and the plain-English guide come next. See
 > [Build phases](#build-phases).
 
 ## The one rule that matters
@@ -64,11 +64,12 @@ python -m app
 python -m pytest
 ```
 
-311 tests, about two seconds. They cover the rounding rule exhaustively -
+412 tests, about five seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
-below - plus the timer channels, idle detection, clock jumps and the widgets
-themselves. The widget tests render into memory rather than onto a screen, so
-they need no display.
+below - plus the timer channels, idle detection, clock jumps, the widgets, and
+the spreadsheet itself (opened back off disk and checked cell by cell). The
+widget tests render into memory rather than onto a screen, so they need no
+display.
 
 ### Build a demo database
 
@@ -97,7 +98,7 @@ through one real day from that demo database.
 | `app/explain.py` | Plain-English walkthrough of the maths.                     |
 | `app/services/`| The operating system: idle counter, clocks, Startup folder.    |
 | `app/ui/`      | PySide6 window, tabs, dialogs and tray icon.                   |
-| `app/export/`  | Workbook generation — *phase 3*.                              |
+| `app/export/`  | Workbook and CSV generation, and writing them to disk.        |
 
 `app/core` is pure by design: every billing figure can be unit tested without
 starting a GUI, which is what makes the test suite a meaningful safety net.
@@ -166,6 +167,32 @@ again than a menu item.
 both timers running, pause bars when paused - so it is still readable without
 colour vision.
 
+**The workbook is written atomically, and never as a partial file.** Each
+save goes to a temporary file in the destination folder and is then renamed
+over the target, so what is on disk is always either the previous version or
+the complete new one. A crash mid-write cannot produce an unopenable
+spreadsheet.
+
+**A locked file is handled differently depending on who asked.** Excel holding
+the workbook open is normal near month end. An *autosave* gives up quietly,
+says so in the status bar and retries on the next cycle — it deliberately does
+not scatter timestamped copies, because that is how an export folder becomes
+unusable. A *manual* Save Now writes a timestamped file instead and says
+plainly what it did.
+
+**Saves run on a worker thread.** Building the spreadsheet is proportional to
+how much history exists. Measured on five years of entries (8,000 records,
+4,000 timesheet rows) a save took 9.5 seconds — long enough to freeze the
+window twice an hour. Switching the cell formatting to named styles cut that
+to about 5 seconds, and moving the work onto a worker thread with its own
+read-only connection removed the freeze entirely. WAL mode is what allows that
+reader to run alongside the writes the user is still making.
+
+**Gap detection never reaches back before the first recorded entry.** On a
+fresh install a sixty-day window would otherwise announce forty missing
+weekdays, and a nudge that is wrong the first time it appears never gets read
+again.
+
 **Tick-off state lives on `daily_notes`.** That table is already keyed by
 project and date, which is exactly the grain the tick needs, so it carries a
 `ticked_at` column rather than justifying a table of its own.
@@ -175,6 +202,36 @@ own month if it is on or after the period end, otherwise in the month after (so
 a calendar month with a 5th deadline is due on the 5th of the following month);
 `last working day` means the last Monday–Friday of the month the period ends in.
 Public holidays are not modelled. *This is an assumption — see below.*
+
+## The spreadsheet
+
+`TimeLog.xlsx` is rewritten from the database - every thirty minutes, a couple
+of minutes after any change, on close, and on demand. A `TimeLog.csv` of the
+Timesheet sheet is written beside it with a fixed column order.
+
+| Sheet | What it is for |
+| ----- | -------------- |
+| `Timesheet` | Every project, one row per project per date. The sheet to read while filling in the intranet. |
+| `TS — <project>` | The same figures for one project, minus the Project column. On by default, capped at 40 tabs. |
+| `Raw Log` | Every individual entry, with its id. The audit trail. |
+| `Travel` | The kilometre log, in SARS travel-logbook column order, with monthly, year-to-date and per-project totals. |
+| `Projects` | The register: deadlines, period type, hours and kilometres to date. |
+| `Summary` | Per project per month, including the raw-versus-billed rounding difference, and a grand total. |
+| `Gaps` | Weekdays in the recent past with no hours recorded. |
+
+Every tabular sheet has a frozen header, an autofilter, real Excel dates and
+real numbers, and no merged cells. Dates already ticked off in Review & Submit
+are greyed out by conditional formatting.
+
+## Backups
+
+* **Weekly workbook snapshot** to `backups\TimeLog_2026-W38.xlsx`, 52 kept.
+  Due seven days after the last one rather than on a fixed weekday, so a
+  fortnight away from the laptop does not skip a snapshot.
+* **Daily database copy** to `backups\db\timetrack_2026-09-19.db`, 30 kept.
+  Taken with SQLite's `VACUUM INTO`, never a file copy: a live WAL database is
+  three files, and copying the main one alone can miss the most recent writes
+  or produce something that will not open.
 
 ## Assumptions to confirm
 
@@ -198,8 +255,8 @@ guesses and should be checked against the real intranet form:
 | ----- | ----------------------------------------------------------- | ----- |
 | 1     | Schema, migrations, calculations, repository, tests, demo   | Done  |
 | 2     | Window, tabs, timers, tray, idle detection, crash recovery  | Done  |
-| 3     | Workbook: six sheets, autosave, file locking, backups       | Next  |
-| 4     | Packaging, shortcuts, startup integration                   | —     |
+| 3     | Workbook: six sheets, autosave, file locking, backups       | Done  |
+| 4     | Packaging, shortcuts, startup integration                   | Next  |
 | 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | —     |
 
 ## Licensing note

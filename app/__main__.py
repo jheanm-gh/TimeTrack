@@ -20,6 +20,32 @@ from app.ui import theme
 from app.version import APP_NAME, VERSION
 
 
+def _run_startup_backups(repo: Repository, conn) -> None:
+    """Take the daily database copy, and the weekly workbook copy if due.
+
+    Backups are a safety net, not the job: a failure here is reported to the
+    Settings panel through the stored dates and never stops the application
+    from opening.
+    """
+    import datetime as _dt
+
+    from app.export.saver import workbook_path
+    from app.services.backup import run_startup_backups
+
+    try:
+        today = _dt.datetime.now(tz=repo.timezone()).date()
+        run_startup_backups(
+            repo,
+            conn,
+            workbook=workbook_path(repo),
+            db_backup_dir=paths.db_backup_dir(),
+            backup_dir=paths.backup_dir(),
+            today=today,
+        )
+    except Exception:  # noqa: BLE001 - never block startup on a backup
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
     start_in_tray = TRAY_ARGUMENT in argv
@@ -54,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     repo = Repository(conn)
+    _run_startup_backups(repo, conn)
+
     if repo.get_bool("startup.open_minimised", False):
         start_in_tray = True
 
