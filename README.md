@@ -64,7 +64,7 @@ python -m app
 python -m pytest
 ```
 
-454 tests, about five seconds. They cover the rounding rule exhaustively -
+453 tests, about five seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
