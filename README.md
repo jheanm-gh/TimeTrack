@@ -4,10 +4,10 @@ A small, offline, single-user timesheet companion for Windows. It makes it
 trivial to start a timer when work begins, and produces a spreadsheet to read
 off while filling in a timesheet on a company intranet.
 
-> **Build status: Phase 3 of 5 complete.** The database, the billing
-> calculations, the window and the spreadsheet all work. Run it with
-> `python -m app`. Packaging and the plain-English guide come next. See
-> [Build phases](#build-phases).
+> **Build status: Phase 4 of 5 complete.** The application is finished and
+> packages into a standalone Windows folder. Run it from source with
+> `python -m app`, or build it with `.\build.ps1`. The plain-English guide
+> comes next. See [Build phases](#build-phases).
 
 ## The one rule that matters
 
@@ -64,7 +64,7 @@ python -m app
 python -m pytest
 ```
 
-412 tests, about five seconds. They cover the rounding rule exhaustively -
+454 tests, about five seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
@@ -95,6 +95,7 @@ through one real day from that demo database.
 | `app/db/`      | SQLite schema, forward-only migrations, repository layer.     |
 | `app/paths.py` | Where files live on disk.                                     |
 | `app/seed.py`  | Demo data generator (development only).                       |
+| `tools/`       | Packaging helpers: icon, version resource, prune rules.       |
 | `app/explain.py` | Plain-English walkthrough of the maths.                     |
 | `app/services/`| The operating system: idle counter, clocks, Startup folder.    |
 | `app/ui/`      | PySide6 window, tabs, dialogs and tray icon.                   |
@@ -203,6 +204,72 @@ a calendar month with a 5th deadline is due on the 5th of the following month);
 `last working day` means the last Monday–Friday of the month the period ends in.
 Public holidays are not modelled. *This is an assumption — see below.*
 
+## Building the Windows application
+
+```powershell
+.\build.ps1
+```
+
+That is the whole build: it creates the virtual environment, installs the
+pinned dependencies, runs the tests, generates the icon and the Windows
+version resource, packages everything, and creates a desktop shortcut and a
+Start Menu entry. The result is `dist\TimeTrack\` containing
+`TimeTrack.exe`.
+
+| Switch | What it does |
+| ------ | ------------ |
+| `-SkipTests` | Skip the test suite (faster; you are then packaging something unchecked) |
+| `-NoShortcuts` | Do not create the desktop and Start Menu shortcuts |
+| `-KeepSoftwareOpenGL` | Include Mesa's software OpenGL fallback, ~20 MB. See below |
+
+**One folder, not one file.** A one-file executable unpacks itself into a
+temporary directory every time it starts — the same behaviour self-extracting
+malware packers use, and a well-known trigger for corporate antivirus
+heuristics. One-folder mode skips the extraction: it starts faster and is far
+less likely to be quarantined. The shortcuts mean it is still one thing to
+double-click. UPX compression is off for the same reason.
+
+**Size.** Roughly **66 MB**, well under the 100 MB target. Qt ships a great
+deal a small desktop form never touches, so `tools/prune_rules.py` drops it:
+the QML runtime (pulled in behind the virtual-keyboard input plugin), Qt PDF
+(pulled in behind the PDF image-format plugin), Qt's own developer tools, and
+image formats the application never opens. `build.ps1` prints the real figure
+and warns if it exceeds 100 MB.
+
+> The estimate above is computed from the actual Windows wheels with the same
+> rules the build applies. It has not been produced on a Windows machine —
+> run `build.ps1` and the script will report the true number.
+
+**If the window ever fails to appear** on a particular machine, rebuild with
+`.\build.ps1 -KeepSoftwareOpenGL`. Qt Widgets paint through the raster engine
+and never need OpenGL, so the software fallback is left out by default, but
+that is the one exclusion that cannot be verified from here.
+
+## If antivirus quarantines it
+
+The application makes **no network calls of any kind** — no telemetry, no
+update check, no analytics, no cloud. Nothing in `requirements.txt` is a
+networking library, and the one Qt networking component used is a *local*
+socket that never leaves the machine (it stops a second copy of the app
+opening and fighting over the database).
+
+If your IT team needs to allow it, give them this folder:
+
+```
+C:\Users\<your username>\...\TimeTrack\dist\TimeTrack\
+```
+
+— that is, wherever you put the project, plus `dist\TimeTrack\`. The exact
+path is printed at the end of every build. Allowing the folder is enough;
+they do not need to allow anything else.
+
+The executable carries proper metadata — company, product name, description,
+version — and its own icon. An unsigned binary with none of that looks more
+suspicious to endpoint protection than one that says plainly what it is. It
+is unsigned because code-signing certificates are bought per-organisation; if
+your firm already has one, signing `TimeTrack.exe` afterwards will remove most
+remaining friction.
+
 ## The spreadsheet
 
 `TimeLog.xlsx` is rewritten from the database - every thirty minutes, a couple
@@ -256,8 +323,8 @@ guesses and should be checked against the real intranet form:
 | 1     | Schema, migrations, calculations, repository, tests, demo   | Done  |
 | 2     | Window, tabs, timers, tray, idle detection, crash recovery  | Done  |
 | 3     | Workbook: six sheets, autosave, file locking, backups       | Done  |
-| 4     | Packaging, shortcuts, startup integration                   | Next  |
-| 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | —     |
+| 4     | Packaging, shortcuts, startup integration                   | Done  |
+| 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | Next  |
 
 ## Licensing note
 

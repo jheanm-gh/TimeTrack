@@ -2,11 +2,13 @@
 # produces the same application. All of these ship prebuilt wheels for
 # CPython 3.12 on Windows (no compiler needed).
 
-PySide6==6.8.3
+# PySide6-Essentials rather than the full PySide6: identical to import, but
+# without the add-on modules (WebEngine, Quick3D, Charts, Multimedia, ...)
+# that this application never touches. Smaller download, faster build, and
+# nothing unexpected for the packager to pick up.
+PySide6-Essentials==6.8.3
 openpyxl==3.1.5
 
-# Pulled in by openpyxl; pinned here so the whole tree is reproducible.
-et-xmlfile==2.0.0
-
-# Pulled in by PySide6; pinned for the same reason.
+# Pulled in by the two above; pinned here so the whole tree is reproducible.
 shiboken6==6.8.3
+et-xmlfile==2.0.0

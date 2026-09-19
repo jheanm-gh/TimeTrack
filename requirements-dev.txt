@@ -1,5 +1,17 @@
-# Development / build-time only. Not needed to run the app from source.
+# Development and build-time only. Not needed to run the app from source.
 -r requirements.txt
 
 pytest==8.4.2
 pyinstaller==6.22.3
+
+# Pinned transitively so a build in six months collects the same files.
+# PyInstaller's hook set in particular decides what ends up in the package.
+pyinstaller-hooks-contrib==2026.7
+altgraph==0.17.5
+packaging==26.3
+setuptools==84.0.0
+
+# Windows-only, used by PyInstaller to stamp the version resource onto the
+# executable. Marked so a Linux or macOS checkout still installs cleanly.
+pefile==2024.8.26; sys_platform == 'win32'
+pywin32-ctypes==0.2.3; sys_platform == 'win32'

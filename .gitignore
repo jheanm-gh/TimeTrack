@@ -9,7 +9,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Build output
+# Build output. The icon and the Windows version resource are generated
+# into build/ at packaging time, so neither is committed.
 build/
 dist/
 *.manifest
