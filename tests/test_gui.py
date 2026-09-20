@@ -352,3 +352,43 @@ class TestTravelThroughTheGui:
         assert repo.get_entry(entry_id).travel.km_travelled == Decimal("120.0")
         assert window.today_tab.table.item(0, COL_KM).text() == "120.0"
         assert "120.0 km" in window.today_tab.totals.text()
+
+
+class TestTimezoneSetting:
+    """The display timezone had no control, so the setting was unreachable.
+
+    It matters on Windows in particular: without a named zone the
+    application uses the operating system's current offset, which is right
+    all year in South Africa but would drift in a country that changes its
+    clocks.
+    """
+
+    def test_the_picker_offers_the_system_default_first(self, window):
+        picker = window.settings_tab.timezone
+        assert picker.itemData(0) == "system"
+        assert "computer" in picker.itemText(0).lower()
+
+    def test_real_timezones_are_listed(self, window):
+        picker = window.settings_tab.timezone
+        assert picker.findData("Africa/Johannesburg") > 0
+        assert picker.count() > 100
+
+    def test_choosing_a_zone_saves_it_and_the_app_uses_it(self, window, repo):
+        from zoneinfo import ZoneInfo
+
+        picker = window.settings_tab.timezone
+        picker.setCurrentIndex(picker.findData("Europe/London"))
+
+        assert repo.get_setting("display.timezone") == "Europe/London"
+        assert repo.timezone() == ZoneInfo("Europe/London")
+
+    def test_it_reports_what_the_choice_resolves_to(self, window, repo):
+        picker = window.settings_tab.timezone
+        picker.setCurrentIndex(picker.findData("Africa/Johannesburg"))
+        assert "UTC+02:00" in window.settings_tab.timezone_status.text()
+
+    def test_the_setting_survives_a_reload(self, window, repo):
+        picker = window.settings_tab.timezone
+        picker.setCurrentIndex(picker.findData("Africa/Johannesburg"))
+        window.settings_tab.reload()
+        assert picker.currentData() == "Africa/Johannesburg"

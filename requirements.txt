@@ -9,6 +9,13 @@
 PySide6-Essentials==6.8.3
 openpyxl==3.1.5
 
+# Windows has no IANA time zone database. Linux and macOS ship one in
+# /usr/share/zoneinfo, so ZoneInfo("Africa/Johannesburg") works there and
+# raises ZoneInfoNotFoundError on Windows. This package is that database,
+# as pure Python data, and zoneinfo falls back to it automatically. Without
+# it the display-timezone setting silently does nothing on Windows.
+tzdata==2026.4
+
 # Pulled in by the two above; pinned here so the whole tree is reproducible.
 shiboken6==6.8.3
 et-xmlfile==2.0.0

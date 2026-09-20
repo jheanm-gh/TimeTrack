@@ -79,7 +79,7 @@ python -m app
 python -m pytest
 ```
 
-453 tests, about five seconds. They cover the rounding rule exhaustively -
+464 tests, about five seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
@@ -138,7 +138,16 @@ locked into `tests/test_rounding.py`. Decimal values are stored in SQLite as
 
 **Instants are stored as UTC ISO-8601 with an explicit offset, displayed local.**
 The display timezone comes from the operating system and is overridable in
-settings; it is never hardcoded.
+Settings; it is never hardcoded.
+
+**The time zone database is a runtime dependency.** Windows ships no IANA
+database — Linux and macOS have one in `/usr/share/zoneinfo`, so
+`ZoneInfo("Africa/Johannesburg")` works there and raises
+`ZoneInfoNotFoundError` on Windows. The `tzdata` package supplies it as pure
+Python data. It is named explicitly in `TimeTrack.spec` rather than left to
+PyInstaller's hook, because that hook only adds it when the *build* runs on
+Windows — which would make the package differ depending on which machine
+built it.
 
 **Durations are measured in UTC.** Python performs *naive* subtraction when two
 aware datetimes share a `tzinfo` object, so in a zone that observes daylight
@@ -254,7 +263,7 @@ heuristics. One-folder mode skips the extraction: it starts faster and is far
 less likely to be quarantined. The shortcuts mean it is still one thing to
 double-click. UPX compression is off for the same reason.
 
-**Size.** Roughly **66 MB**, well under the 100 MB target. Qt ships a great
+**Size.** Roughly **69 MB**, well under the 100 MB target. Qt ships a great
 deal a small desktop form never touches, so `tools/prune_rules.py` drops it:
 the QML runtime (pulled in behind the virtual-keyboard input plugin), Qt PDF
 (pulled in behind the PDF image-format plugin), Qt's own developer tools, and

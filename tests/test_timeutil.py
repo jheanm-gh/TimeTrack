@@ -118,3 +118,66 @@ class TestDaylightSavingSafety:
         pieces = split_interval_across_days(span, self.LONDON)
         # Two real hours pass, even though the clock shows three.
         assert sum(piece.seconds() for _, piece in pieces) == 2 * 3600
+
+
+class TestWindowsHasNoTimezoneDatabase:
+    """Windows ships no IANA time zone database.
+
+    Linux and macOS have one in /usr/share/zoneinfo, so ZoneInfo("Africa/
+    Johannesburg") works there and raises ZoneInfoNotFoundError on Windows.
+    The tzdata package supplies it as pure Python data and zoneinfo falls
+    back to it automatically - but only if it is installed, which is why it
+    is a runtime dependency rather than a developer convenience.
+
+    These tests empty the system search path to reproduce a Windows machine.
+    """
+
+    @pytest.fixture
+    def without_system_database(self):
+        import zoneinfo
+
+        original = list(zoneinfo.TZPATH)
+        zoneinfo.reset_tzpath([])
+        # Entries cached before the path changed would mask the failure.
+        zoneinfo.ZoneInfo.clear_cache()
+        try:
+            yield
+        finally:
+            zoneinfo.reset_tzpath(original)
+            zoneinfo.ZoneInfo.clear_cache()
+
+    def test_the_tzdata_package_is_installed(self):
+        import tzdata
+
+        assert tzdata.__version__
+
+    def test_a_named_zone_still_resolves(self, without_system_database):
+        assert resolve_timezone("Africa/Johannesburg") == ZoneInfo(
+            "Africa/Johannesburg"
+        )
+
+    def test_the_users_own_zone_is_correct_all_year(self, without_system_database):
+        """South Africa is UTC+2 with no daylight saving."""
+        zone = resolve_timezone("Africa/Johannesburg")
+        january = _dt.datetime(2026, 1, 15, tzinfo=zone)
+        july = _dt.datetime(2026, 7, 15, tzinfo=zone)
+        assert january.utcoffset() == july.utcoffset() == _dt.timedelta(hours=2)
+
+    def test_a_daylight_saving_zone_still_transitions(self, without_system_database):
+        """Proves the real database is in use, not a fixed-offset stand-in."""
+        zone = resolve_timezone("Europe/London")
+        winter = _dt.datetime(2026, 1, 15, 12, tzinfo=zone)
+        summer = _dt.datetime(2026, 7, 15, 12, tzinfo=zone)
+        assert winter.utcoffset() == _dt.timedelta(0)
+        assert summer.utcoffset() == _dt.timedelta(hours=1)
+
+    def test_the_repository_resolves_its_display_timezone(
+        self, without_system_database, repo
+    ):
+        repo.set_setting("display.timezone", "Africa/Johannesburg")
+        assert repo.timezone() == ZoneInfo("Africa/Johannesburg")
+
+    def test_a_nonsense_zone_still_falls_back_rather_than_crashing(
+        self, without_system_database
+    ):
+        assert resolve_timezone("Mars/Olympus_Mons") is not None

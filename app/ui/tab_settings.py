@@ -53,6 +53,7 @@ class SettingsTab(QWidget):
         # fields overlap.
         inner = QWidget()
         inner_layout = QVBoxLayout(inner)
+        inner_layout.addWidget(self._timezone_group())
         inner_layout.addWidget(self._rounding_group())
         inner_layout.addWidget(self._idle_group())
         inner_layout.addWidget(self._windows_group())
@@ -72,6 +73,43 @@ class SettingsTab(QWidget):
         self.reload()
 
     # -- groups -----------------------------------------------------------
+
+    def _timezone_group(self) -> QGroupBox:
+        """Which clock the dates and times are shown against.
+
+        The setting has always existed; this is the control for it. It
+        matters because the default - "use this computer's setting" - gives
+        Windows' current offset, which is correct all year in South Africa
+        but would drift in a country that changes its clocks. Naming a zone
+        explicitly uses the real time zone database instead.
+        """
+        group = QGroupBox("Dates and times")
+        self.timezone = QComboBox()
+        self.timezone.addItem("Use this computer's setting", "system")
+
+        import zoneinfo
+
+        for name in sorted(zoneinfo.available_timezones()):
+            self.timezone.addItem(name, name)
+
+        note = QLabel(
+            "Days start and end according to this clock, which decides which "
+            "date a late-night session belongs to."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+
+        self.timezone_status = QLabel()
+        self.timezone_status.setWordWrap(True)
+        self.timezone_status.setStyleSheet(f"color: {theme.MUTED.name()};")
+
+        form = QFormLayout(group)
+        form.addRow("Time zone", self.timezone)
+        form.addRow("", note)
+        form.addRow("", self.timezone_status)
+
+        self.timezone.currentIndexChanged.connect(self._save_timezone)
+        return group
 
     def _rounding_group(self) -> QGroupBox:
         group = QGroupBox("How hours are rounded")
@@ -237,6 +275,11 @@ class SettingsTab(QWidget):
                 self.repo.get_bool("rounding.apply_to_software", True)
             )
 
+            configured_zone = self.repo.get_setting("display.timezone") or "system"
+            index = self.timezone.findData(configured_zone)
+            self.timezone.setCurrentIndex(max(0, index))
+            self._describe_timezone()
+
             self.idle_enabled.setChecked(self.repo.get_bool("idle.enabled", True))
             self.idle_threshold.setValue(
                 self.repo.get_int("idle.threshold_minutes", 10)
@@ -294,6 +337,27 @@ class SettingsTab(QWidget):
         if last_workbook:
             lines.append(f"Last weekly backup taken on {last_workbook}.")
         self.backups_label.setText("\n".join(lines))
+
+    def _describe_timezone(self) -> None:
+        """Show what the chosen setting actually resolves to right now."""
+        import datetime as _dt
+
+        zone = self.repo.timezone()
+        now = _dt.datetime.now(tz=zone)
+        offset = now.utcoffset() or _dt.timedelta()
+        hours, remainder = divmod(int(offset.total_seconds()), 3600)
+        sign = "+" if hours >= 0 else "-"
+        self.timezone_status.setText(
+            f"Right now that is {now:%H:%M} "
+            f"(UTC{sign}{abs(hours):02d}:{abs(remainder) // 60:02d})."
+        )
+
+    def _save_timezone(self) -> None:
+        if self._loading:
+            return
+        self.repo.set_setting("display.timezone", self.timezone.currentData())
+        self._describe_timezone()
+        self.settings_changed.emit()
 
     def _save_rounding(self) -> None:
         if self._loading:

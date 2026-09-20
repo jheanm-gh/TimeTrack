@@ -100,9 +100,20 @@ analysis = Analysis(  # noqa: F821
     pathex=[str(PROJECT_ROOT)],
     binaries=[],
     datas=[],
-    # openpyxl reaches for these lazily; naming them keeps the analyser from
-    # missing them and producing a build that fails on the first save.
-    hiddenimports=["openpyxl.cell._writer"],
+    hiddenimports=[
+        # openpyxl reaches for this lazily; naming it keeps the analyser from
+        # missing it and producing a build that fails on the first save.
+        "openpyxl.cell._writer",
+        # The IANA time zone database. Windows has none of its own, so
+        # without this the packaged application cannot resolve a named zone
+        # and the display-timezone setting silently does nothing.
+        #
+        # PyInstaller's own zoneinfo hook adds this, but only when the build
+        # runs on Windows. Naming it here makes the package identical
+        # whatever machine builds it, and means the result can be checked
+        # from a Linux build too.
+        "tzdata",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
