@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.calc import daily_rollup, rollup_totals
+from app.core.calc import daily_rollup, entry_duration_seconds, rollup_totals
 from app.core.models import EntryKind
 from app.core.timeutil import day_name, format_hm, to_local, utc_now
 from app.db.repository import Repository
@@ -190,6 +190,13 @@ class LogTab(QWidget):
 
         for row_index, entry in enumerate(entries):
             start_local = to_local(entry.started_at, tz)
+            # Live figure for a running timer; the stored one lags by up to
+            # one heartbeat.
+            counted = (
+                entry_duration_seconds(entry.to_calc(), now=utc_now())
+                if entry.is_running
+                else entry.duration_seconds
+            )
             end_local = to_local(entry.ended_at, tz) if entry.ended_at else None
             task_name = ""
             if entry.task_id:
@@ -207,7 +214,7 @@ class LogTab(QWidget):
                     f"{end_local:%H:%M}" if end_local else "running",
                     end_local or _dt.datetime.max.replace(tzinfo=tz),
                 ),
-                SortableItem(format_hm(entry.duration_seconds), entry.duration_seconds),
+                SortableItem(format_hm(counted), counted),
                 SortableItem(entry.description),
                 SortableItem(entry.software_name or ""),
                 SortableItem(

@@ -22,7 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.calc import ValidationError, daily_rollup, rollup_totals
+from app.core.calc import (
+    ValidationError,
+    daily_rollup,
+    entry_duration_seconds,
+    rollup_totals,
+)
 from app.core.models import EntryKind
 from app.core.timeutil import format_hm, to_local, utc_now
 from app.db.repository import Repository
@@ -169,6 +174,14 @@ class TodayTab(QWidget):
                 task_name = task_row["name"] if task_row else ""
 
             start_local = to_local(entry.started_at, tz)
+            # The stored duration is only refreshed by the heartbeat, so a
+            # timer started moments ago still reads zero. Compute the live
+            # figure for anything still running.
+            counted = (
+                entry_duration_seconds(entry.to_calc(), now=utc_now())
+                if entry.is_running
+                else entry.duration_seconds
+            )
             end_local = to_local(entry.ended_at, tz) if entry.ended_at else None
             running = entry.is_running
 
@@ -183,7 +196,7 @@ class TodayTab(QWidget):
                     f"{end_local:%H:%M}" if end_local else "running", end_local
                 ),
                 COL_DURATION: SortableItem(
-                    format_hm(entry.duration_seconds), entry.duration_seconds
+                    format_hm(counted), counted
                 ),
                 COL_DESC: SortableItem(entry.description),
                 COL_SOFTWARE: SortableItem(entry.software_name or ""),

@@ -392,3 +392,29 @@ class TestTimezoneSetting:
         picker.setCurrentIndex(picker.findData("Africa/Johannesburg"))
         window.settings_tab.reload()
         assert picker.currentData() == "Africa/Johannesburg"
+
+
+class TestRunningTimerDisplay:
+    def test_a_running_entry_shows_live_elapsed_not_zero(self, window, repo, project):
+        """The stored duration only updates on the heartbeat, so a timer
+        started moments ago would otherwise read 0:00 in the table while the
+        big readout above it counted up."""
+        import datetime as _dt
+
+        from app.ui.tab_today import COL_DURATION
+
+        started = _dt.datetime.now(tz=repo.timezone()) - _dt.timedelta(minutes=95)
+        entry_id = repo.start_timer(project, now=started)
+        assert repo.get_entry(entry_id).duration_seconds == 0  # no heartbeat yet
+
+        window.today_tab.refresh()
+        assert window.today_tab.table.item(0, COL_DURATION).text() == "1:35"
+
+    def test_a_stopped_entry_shows_its_stored_duration(self, window, repo, project):
+        from app.ui.tab_today import COL_DURATION
+
+        repo.add_manual_entry(
+            project, started_at=at(repo, 9), ended_at=at(repo, 11, 30)
+        )
+        window.today_tab.refresh()
+        assert window.today_tab.table.item(0, COL_DURATION).text() == "2:30"

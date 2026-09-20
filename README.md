@@ -79,7 +79,7 @@ python -m app
 python -m pytest
 ```
 
-475 tests, about five seconds. They cover the rounding rule exhaustively -
+543 tests, about nine seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
@@ -270,16 +270,13 @@ heuristics. One-folder mode skips the extraction: it starts faster and is far
 less likely to be quarantined. The shortcuts mean it is still one thing to
 double-click. UPX compression is off for the same reason.
 
-**Size.** Roughly **69 MB**, well under the 100 MB target. Qt ships a great
+**Size.** **70.1 MB across 759 files**, measured on Windows. Well under
+the 100 MB target. Qt ships a great
 deal a small desktop form never touches, so `tools/prune_rules.py` drops it:
 the QML runtime (pulled in behind the virtual-keyboard input plugin), Qt PDF
 (pulled in behind the PDF image-format plugin), Qt's own developer tools, and
 image formats the application never opens. `build.ps1` prints the real figure
 and warns if it exceeds 100 MB.
-
-> The estimate above is computed from the actual Windows wheels with the same
-> rules the build applies. It has not been produced on a Windows machine —
-> run `build.ps1` and the script will report the true number.
 
 **If the window ever fails to appear** on a particular machine, rebuild with
 `.\build.ps1 -KeepSoftwareOpenGL`. Qt Widgets paint through the raster engine
@@ -365,7 +362,27 @@ guesses and should be checked against the real intranet form:
 | 2     | Window, tabs, timers, tray, idle detection, crash recovery  | Done  |
 | 3     | Workbook: six sheets, autosave, file locking, backups       | Done  |
 | 4     | Packaging, shortcuts, startup integration                   | Done  |
-| 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | Next  |
+| 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | Done  |
+
+## Three defects that only appeared on Windows
+
+The whole application was written on Linux and runs on Windows. Everything
+below passed every test on the development machine and failed immediately on
+the target, which is worth recording because the pattern will repeat.
+
+1. **PowerShell refuses to run unsigned scripts.** The execution policy on
+   Windows client editions is `Restricted`, so `build.ps1` failed before it
+   did anything. Fixed with the `build.cmd` wrapper.
+2. **Windows has no time zone database.** `ZoneInfo("Africa/Johannesburg")`
+   works on Linux and raises `ZoneInfoNotFoundError` on Windows. Fixed by
+   making `tzdata` a runtime dependency and naming it in the spec.
+3. **`%-d` is a glibc extension.** It strips a leading zero on Linux and
+   raises `ValueError` on Windows. It was used to label cutoff periods, so
+   every project on a cutoff cycle would have crashed the Projects tab,
+   Review & Submit and every workbook save.
+
+`tests/test_portability.py` now scans for the third class automatically, and
+`tests/test_docs.py` keeps the written guide in step with the interface.
 
 ## Licensing note
 
