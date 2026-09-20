@@ -1,0 +1,16 @@
+# Keep line endings correct per platform regardless of where a file is
+# edited. Windows batch files in particular can misbehave with LF endings.
+* text=auto
+
+*.ps1  text eol=crlf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.spec text eol=lf
+
+*.xlsx binary
+*.ico  binary
+*.png  binary
+*.db   binary

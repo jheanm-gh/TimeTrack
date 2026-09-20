@@ -28,7 +28,8 @@
     window ever fails to appear on a particular machine.
 
 .PARAMETER Python
-    The Python launcher command to build with. Defaults to "py -3.12".
+    Build with a specific Python interpreter instead of looking for one.
+    Leave it unset and the script finds Python 3.12 by itself.
 #>
 
 [CmdletBinding()]
@@ -36,14 +37,18 @@ param(
     [switch]$SkipTests,
     [switch]$NoShortcuts,
     [switch]$KeepSoftwareOpenGL,
-    [string]$Python = "py"
+    [string]$Python = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
 $AppName      = "TimeTrack"
-$ProjectRoot  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ProjectRoot  = $PSScriptRoot
+if (-not $ProjectRoot) {
+    # Fallback for very old hosts; $PSScriptRoot exists from PowerShell 3.0.
+    $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
 $VenvDir      = Join-Path $ProjectRoot ".venv"
 $VenvPython   = Join-Path $VenvDir "Scripts\python.exe"
 $BuildDir     = Join-Path $ProjectRoot "build"
@@ -76,10 +81,39 @@ Write-Host "Project folder: $ProjectRoot"
 Write-Step "Checking Python"
 if (-not (Test-Path $VenvPython)) {
     Write-Host "    No virtual environment yet - creating one."
-    if ($Python -eq "py") {
-        Invoke-Checked "Creating the virtual environment" "py" @("-3.12", "-m", "venv", $VenvDir)
+    $created = $false
+
+    if ($Python) {
+        # An interpreter was named explicitly; use exactly that one.
+        & $Python -m venv $VenvDir
+        if ($LASTEXITCODE -eq 0) { $created = $true }
     } else {
-        Invoke-Checked "Creating the virtual environment" $Python @("-m", "venv", $VenvDir)
+        # The py launcher is what a standard python.org install provides,
+        # and it can pick 3.12 specifically even with other versions present.
+        if (Get-Command "py" -ErrorAction SilentlyContinue) {
+            & py -3.12 -m venv $VenvDir
+            if ($LASTEXITCODE -eq 0) {
+                $created = $true
+            } else {
+                Write-Host "    The py launcher could not find Python 3.12; trying 'python'."
+            }
+        }
+        if (-not $created -and (Get-Command "python" -ErrorAction SilentlyContinue)) {
+            & python -m venv $VenvDir
+            if ($LASTEXITCODE -eq 0) { $created = $true }
+        }
+    }
+
+    if (-not $created) {
+        throw @"
+Python 3.12 was not found on this computer.
+
+Install it from:
+    https://www.python.org/downloads/release/python-3128/
+
+Choose the 64-bit Windows installer, and tick "Add python.exe to PATH" on
+the first screen. Then run this build again.
+"@
     }
 }
 $versionText = & $VenvPython "--version"

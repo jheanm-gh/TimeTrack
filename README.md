@@ -43,11 +43,26 @@ property: it can be stated truthfully to an IT department.
 
 ## Getting started
 
+The work lives on the `claude/new-session-lq5yxu` branch, and the repository
+has no `main` branch — so a plain `git pull` downloads it without switching to
+it, and leaves you looking at an empty folder. Check the branch out once:
+
+```powershell
+git fetch origin
+git checkout claude/new-session-lq5yxu
+```
+
+After that, `git pull` on its own keeps you up to date.
+
+To run it from source:
+
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
 ```
+
+Or skip all of that and run `.\build.cmd`, which does it for you.
 
 On Linux or macOS, substitute `python3.12 -m venv .venv` and
 `source .venv/bin/activate`.
@@ -207,8 +222,17 @@ Public holidays are not modelled. *This is an assumption — see below.*
 ## Building the Windows application
 
 ```powershell
-.\build.ps1
+.\build.cmd
 ```
+
+Use `build.cmd`, not `build.ps1` directly. Windows refuses to run unsigned
+PowerShell scripts out of the box — the execution policy on Windows 10 and 11
+client editions is `Restricted` — so `.\build.ps1` fails with a security error
+on a clean machine. `build.cmd` bypasses that policy **for that one command
+only**; it changes no system setting and leaves the machine as it was. You can
+also just double-click it in Explorer.
+
+Switches pass straight through, for example `.\build.cmd -SkipTests`.
 
 That is the whole build: it creates the virtual environment, installs the
 pinned dependencies, runs the tests, generates the icon and the Windows
@@ -221,6 +245,7 @@ Start Menu entry. The result is `dist\TimeTrack\` containing
 | `-SkipTests` | Skip the test suite (faster; you are then packaging something unchecked) |
 | `-NoShortcuts` | Do not create the desktop and Start Menu shortcuts |
 | `-KeepSoftwareOpenGL` | Include Mesa's software OpenGL fallback, ~20 MB. See below |
+| `-Python <path>` | Build with a specific interpreter instead of auto-detecting 3.12 |
 
 **One folder, not one file.** A one-file executable unpacks itself into a
 temporary directory every time it starts — the same behaviour self-extracting
