@@ -572,9 +572,18 @@ def cutoff_period(day: _dt.date, period_start_day: int) -> Period:
 
 
 def _cutoff_label(start: _dt.date, end: _dt.date) -> str:
+    """Render a cutoff period as e.g. ``26 Aug - 25 Sep 2026``.
+
+    The day number is formatted in Python rather than with strftime's
+    ``%-d``. That directive strips the leading zero on Linux and macOS, but
+    it is a glibc extension: Python hands format strings to the platform's C
+    library, and Windows raises ValueError on it. Since this label is built
+    for every project on a cutoff cycle, using it would crash the Projects
+    tab, Review & Submit and every workbook save on the target platform.
+    """
     if start.year == end.year:
-        return f"{start:%-d %b} – {end:%-d %b %Y}"
-    return f"{start:%-d %b %Y} – {end:%-d %b %Y}"
+        return f"{start.day} {start:%b} – {end.day} {end:%b %Y}"
+    return f"{start.day} {start:%b %Y} – {end.day} {end:%b %Y}"
 
 
 def period_for_date(

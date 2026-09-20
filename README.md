@@ -79,7 +79,7 @@ python -m app
 python -m pytest
 ```
 
-464 tests, about five seconds. They cover the rounding rule exhaustively -
+475 tests, about five seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
@@ -139,6 +139,13 @@ locked into `tests/test_rounding.py`. Decimal values are stored in SQLite as
 **Instants are stored as UTC ISO-8601 with an explicit offset, displayed local.**
 The display timezone comes from the operating system and is overridable in
 Settings; it is never hardcoded.
+
+**Date formatting avoids glibc-only directives.** Python hands format
+strings to the platform's C library, so `%-d` (day without a leading zero)
+works on Linux and macOS and raises `ValueError` on Windows. `tests/
+test_portability.py` scans the source for those directives and renders every
+format the application uses, because this class of bug is invisible on the
+machine it is written on.
 
 **The time zone database is a runtime dependency.** Windows ships no IANA
 database — Linux and macOS have one in `/usr/share/zoneinfo`, so
