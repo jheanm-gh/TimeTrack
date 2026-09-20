@@ -112,4 +112,18 @@ def window(qapp, repo, tmp_path, monkeypatch):
     main.timers.shutdown()
     main.autosave.shutdown()
     main.tray.hide()
+    # Deliberately not close(): that runs closeEvent, which opens the modal
+    # "what should happen to your running timers" dialog and waits forever
+    # for an answer nobody is there to give.
+    main.hide()
     main.deleteLater()
+    # deleteLater() only queues the deletion, and processEvents() does NOT
+    # deliver DeferredDelete outside a running event loop - those are held
+    # until the loop that posted them returns, and there is no loop here.
+    # Without this every window ever created stays alive, and since applying
+    # a stylesheet re-polishes all of them, a theme switch late in the suite
+    # took nineteen seconds.
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()

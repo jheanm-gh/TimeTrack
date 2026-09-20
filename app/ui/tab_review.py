@@ -45,13 +45,18 @@ from app.core.calc import (
 from app.core.timeutil import day_name, format_hm, utc_now
 from app.db.repository import Repository
 from app.ui import theme
-from app.ui.widgets import ID_ROLE, SortableItem, configure_table, emphasise, muted
+from app.ui.widgets import ID_ROLE, SortableItem, configure_table, emphasise, muted, set_role
 
 COLUMNS = ["Done", "Date", "Day", "Hours", "Software", "Description", "Sessions", "Km"]
 COL_TICK, COL_DATE, COL_DAY, COL_HOURS, COL_SOFTWARE, COL_DESC, COL_SESSIONS, COL_KM = range(8)
 
-#: Highlight for the row the user should be typing in next.
-NEXT_ROW_BACKGROUND = "#FFF3CD"
+#: Highlight for the row the user should be typing in next. Read from the
+#: palette rather than fixed: a light yellow behind light text is unreadable
+#: in dark mode.
+
+
+def next_row_background() -> str:
+    return theme.hex_of("next_row")
 
 
 class ReviewTable(QTableWidget):
@@ -135,7 +140,7 @@ class ReviewTab(QWidget):
             "Tick each date as you enter it on the intranet. The next date to "
             "do is highlighted. Ctrl+C copies just the cell you are on."
         )
-        hint.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(hint, "muted")
 
         layout = QVBoxLayout(self)
         layout.addLayout(controls)
@@ -295,7 +300,7 @@ class ReviewTab(QWidget):
             for column in range(len(COLUMNS)):
                 item = self.table.item(next_row_index, column)
                 if item is not None and column != COL_HOURS:
-                    item.setBackground(QColor(NEXT_ROW_BACKGROUND))
+                    item.setBackground(QColor(next_row_background()))
             self.table.selectRow(next_row_index)
             self.table.scrollToItem(self.table.item(next_row_index, COL_DATE))
 
@@ -331,21 +336,21 @@ class ReviewTab(QWidget):
         deadline = submission_deadline(end, project_row["submission_day"])
         if deadline is None:
             self.deadline_label.setText("No submission deadline set for this project.")
-            self.deadline_label.setStyleSheet(f"color: {theme.MUTED.name()};")
+            set_role(self.deadline_label, "muted")
             return
         today = _dt.datetime.now(tz=self.repo.timezone()).date()
         remaining = (deadline - today).days
         if submitted:
             text = f"Submitted. Deadline was {deadline:%a %d %B}."
-            colour = theme.MUTED.name()
+            role = "muted"
         elif remaining < 0:
             text = f"Overdue - the deadline was {deadline:%a %d %B}, {abs(remaining)} days ago."
-            colour = theme.DANGER.name()
+            role = "danger"
         else:
             text = f"Due {deadline:%a %d %B} - {remaining} days from now."
-            colour = theme.PAUSED.name() if remaining <= 5 else theme.MUTED.name()
+            role = "warning" if remaining <= 5 else "muted"
         self.deadline_label.setText(text)
-        self.deadline_label.setStyleSheet(f"color: {colour}; font-weight: bold;")
+        set_role(self.deadline_label, role)
 
     # -- editing ----------------------------------------------------------
 

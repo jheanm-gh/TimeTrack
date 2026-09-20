@@ -79,7 +79,7 @@ python -m app
 python -m pytest
 ```
 
-543 tests, about nine seconds. They cover the rounding rule exhaustively -
+624 tests, about fourteen seconds. They cover the rounding rule exhaustively -
 exact boundaries, single-second crossings, the floating-point traps described
 below - plus the timer channels, idle detection, clock jumps, the widgets, and
 the spreadsheet itself (opened back off disk and checked cell by cell). The
@@ -139,6 +139,16 @@ locked into `tests/test_rounding.py`. Decimal values are stored in SQLite as
 **Instants are stored as UTC ISO-8601 with an explicit offset, displayed local.**
 The display timezone comes from the operating system and is overridable in
 Settings; it is never hardcoded.
+
+**Colour is a palette, and contrast is a measured contract.** Both themes
+define the same tokens, and `theme.CONTRAST_PAIRS` lists every
+text-on-background combination the interface produces. `tests/test_theme.py`
+measures each against WCAG AA and fails below 4.5:1. The first version put
+near-white text on a light background for disabled buttons — 1.35:1, which is
+unreadable — by implementing "looks disabled" as "fade the text towards its
+own background". A second test forbids hardcoded colours anywhere in
+`app/ui`, because a colour written into a widget cannot follow a theme
+change.
 
 **Date formatting avoids glibc-only directives.** Python hands format
 strings to the platform's C library, so `%-d` (day without a leading zero)
@@ -363,6 +373,9 @@ guesses and should be checked against the real intranet form:
 | 3     | Workbook: six sheets, autosave, file locking, backups       | Done  |
 | 4     | Packaging, shortcuts, startup integration                   | Done  |
 | 5     | Documentation, including a plain-English `HOW-TO-USE.md`    | Done  |
+
+Since then: light and dark themes, a measured contrast contract, and the
+ability to remove an unused project from the list.
 
 ## Three defects that only appeared on Windows
 

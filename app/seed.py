@@ -79,7 +79,7 @@ TASKS = {
     3: ["Cut slope sections", "Drainage assessment"],
 }
 
-SOFTWARE = ["PLAXIS 2D", "RS2", "GeoStudio SLOPE/W", "Leapfrog Geo", "PLAXIS 3D"]
+SOFTWARE = ["RS2", "Slide2", "GeoStudio SLOPE/W", "Leapfrog Geo", "RS3"]
 
 WORK_NOTES = [
     "Slope stability analysis and sensitivity runs",
@@ -265,7 +265,7 @@ def build_demo(
         EntryKind.SOFTWARE,
         started_at=_at(tz, overnight_day, 18, 40),
         ended_at=_at(tz, overnight_day + _dt.timedelta(days=1), 6, 15),
-        software_name="PLAXIS 3D",
+        software_name="Leapfrog Geo",
         description="Consolidation analysis left running overnight",
     )
 

@@ -41,6 +41,7 @@ from app.ui.widgets import (
     TimeDelegate,
     configure_table,
     muted,
+    set_role,
 )
 
 COLUMNS = [
@@ -100,7 +101,7 @@ class TodayTab(QWidget):
             "Double-click a cell to change it. Every edit is recorded, and the "
             "previous value can always be recovered."
         )
-        hint.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(hint, "muted")
 
         layout = QVBoxLayout(self)
         layout.addLayout(buttons)

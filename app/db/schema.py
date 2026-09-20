@@ -313,6 +313,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "close.default_action": "tray",
     # Display
     "display.timezone": "system",
+    "display.theme": "system",  # "system", "light" or "dark"
     "ui.catchup_days": "30",
     "ui.deadline_warning_days": "5",
     "gaps.window_days": "60",

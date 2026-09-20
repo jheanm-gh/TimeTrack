@@ -355,6 +355,59 @@ class Repository:
     def unarchive_project(self, project_id: int) -> None:
         self.set_project_status(project_id, ProjectStatus.ACTIVE)
 
+    def project_entry_count(self, project_id: int) -> int:
+        """How many entries a project has, *including* deleted ones.
+
+        A soft-deleted entry is still history that was promised to be
+        recoverable, so it counts against removing the project.
+        """
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM time_entries WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def delete_project(self, project_id: int) -> str:
+        """Permanently remove a project that has no time recorded against it.
+
+        This is the one deliberate exception to "nothing is ever deleted",
+        and it is narrow on purpose: it exists to undo a mistake - a typo, or
+        a name pasted in from the intranet list that turned out not to be
+        wanted - not to tidy away finished work. A project with any entry at
+        all, deleted ones included, refuses and points at archiving instead,
+        because removing it would take billable history with it.
+
+        Returns the name of the project removed.
+        """
+        project = self.get_project(project_id)
+        if project is None:
+            raise ValidationError("That project no longer exists.")
+
+        entries = self.project_entry_count(project_id)
+        if entries:
+            raise ValidationError(
+                f"'{project['name']}' has {entries} "
+                f"{'entry' if entries == 1 else 'entries'} recorded against "
+                "it, so removing it would delete real time.\n\n"
+                "Use 'Mark done' instead: the project disappears from the "
+                "pickers but every hour is kept."
+            )
+
+        name = project["name"]
+        with transaction(self.conn):
+            # Tasks restrict deletion of their project, so they go first.
+            # Notes and submissions cascade, but are removed explicitly so
+            # the intent is visible rather than implied by the schema.
+            self.conn.execute("DELETE FROM tasks WHERE project_id = ?", (project_id,))
+            self.conn.execute(
+                "DELETE FROM daily_notes WHERE project_id = ?", (project_id,)
+            )
+            self.conn.execute(
+                "DELETE FROM submissions WHERE project_id = ?", (project_id,)
+            )
+            self.conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        return name
+
     def get_project(self, project_id: int) -> sqlite3.Row | None:
         return self.conn.execute(
             "SELECT * FROM projects WHERE id = ?", (project_id,)

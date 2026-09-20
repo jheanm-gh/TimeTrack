@@ -49,6 +49,7 @@ from app.core.models import (
 from app.core.timeutil import format_hm, to_local
 from app.db.repository import Repository, SavedEntry
 from app.ui import theme
+from app.ui.widgets import set_role
 
 
 def warn(parent: QWidget | None, message: str, title: str = "TimeTrack") -> None:
@@ -89,7 +90,7 @@ class TravelFields(QGroupBox):
         self.hint = QLabel(
             "Enter both odometer readings and the kilometres work themselves out."
         )
-        self.hint.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.hint, "muted")
         self.hint.setWordWrap(True)
 
         form = QFormLayout(self)
@@ -117,10 +118,10 @@ class TravelFields(QGroupBox):
             self.hint.setText(
                 "The closing reading is lower than the opening one - please check."
             )
-            self.hint.setStyleSheet(f"color: {theme.DANGER.name()}; font-weight: bold;")
+            set_role(self.hint, "danger")
             return
         self.hint.setText(f"That is {end - start} km.")
-        self.hint.setStyleSheet(f"color: {theme.WORK.name()};")
+        set_role(self.hint, "ok")
 
     def load(self, travel: TravelDetail) -> None:
         if not travel.has_any:
@@ -369,11 +370,11 @@ class EntryDialog(QDialog):
             # Almost always means the session ran past midnight; offer it
             # rather than making the user work out why Save is refusing.
             self.duration_label.setText("ends before it starts")
-            self.duration_label.setStyleSheet(f"color: {theme.DANGER.name()};")
+            set_role(self.duration_label, "danger")
             return
         seconds = int((end - start).total_seconds())
         self.duration_label.setText(f"= {format_hm(seconds)}")
-        self.duration_label.setStyleSheet(f"color: {theme.INK.name()};")
+        set_role(self.duration_label, None)
 
     def _on_save(self) -> None:
         project_id = self.project.currentData()
@@ -731,7 +732,7 @@ class RecoveryDialog(QDialog):
             "in the audit trail and can be brought back."
         )
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(note, "muted")
         layout.addWidget(note)
 
     def _choose(self, decision: RecoveryDecision) -> None:

@@ -35,6 +35,7 @@ from app.services import idle as idle_module
 from app.services import startup as startup_module
 from app.services.backup import SETTING_WORKBOOK_LAST, describe_backups
 from app.ui import theme
+from app.ui.widgets import set_role
 from app.ui.dialogs import warn
 
 
@@ -53,6 +54,7 @@ class SettingsTab(QWidget):
         # fields overlap.
         inner = QWidget()
         inner_layout = QVBoxLayout(inner)
+        inner_layout.addWidget(self._appearance_group())
         inner_layout.addWidget(self._timezone_group())
         inner_layout.addWidget(self._rounding_group())
         inner_layout.addWidget(self._idle_group())
@@ -73,6 +75,29 @@ class SettingsTab(QWidget):
         self.reload()
 
     # -- groups -----------------------------------------------------------
+
+    def _appearance_group(self) -> QGroupBox:
+        """Light or dark, or follow the desktop."""
+        group = QGroupBox("Appearance")
+        self.theme = QComboBox()
+        self.theme.addItem("Match this computer", theme.SYSTEM)
+        self.theme.addItem("Light", theme.LIGHT)
+        self.theme.addItem("Dark", theme.DARK)
+
+        note = QLabel(
+            "Changes straight away - there is no need to restart. The "
+            "spreadsheet is always produced in light colours, because it is "
+            "printed and shared."
+        )
+        note.setWordWrap(True)
+        set_role(note, "muted")
+
+        form = QFormLayout(group)
+        form.addRow("Theme", self.theme)
+        form.addRow("", note)
+
+        self.theme.currentIndexChanged.connect(self._save_theme)
+        return group
 
     def _timezone_group(self) -> QGroupBox:
         """Which clock the dates and times are shown against.
@@ -97,11 +122,11 @@ class SettingsTab(QWidget):
             "date a late-night session belongs to."
         )
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(note, "muted")
 
         self.timezone_status = QLabel()
         self.timezone_status.setWordWrap(True)
-        self.timezone_status.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.timezone_status, "muted")
 
         form = QFormLayout(group)
         form.addRow("Time zone", self.timezone)
@@ -138,7 +163,7 @@ class SettingsTab(QWidget):
             "six ten-minute calls bill one hour, not one and a half."
         )
         explanation.setWordWrap(True)
-        explanation.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(explanation, "muted")
 
         form = QFormLayout(group)
         form.addRow("Round to", self.increment)
@@ -164,7 +189,7 @@ class SettingsTab(QWidget):
             "run all night unattended.\n" + idle_module.describe()
         )
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(note, "muted")
 
         form = QFormLayout(group)
         form.addRow("", self.idle_enabled)
@@ -183,7 +208,7 @@ class SettingsTab(QWidget):
 
         self.startup_status = QLabel()
         self.startup_status.setWordWrap(True)
-        self.startup_status.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.startup_status, "muted")
 
         form = QFormLayout(group)
         form.addRow("", self.run_on_startup)
@@ -211,7 +236,7 @@ class SettingsTab(QWidget):
             "leaving copies lying about."
         )
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(note, "muted")
 
         form = QFormLayout(group)
         form.addRow("", self.autosave_enabled)
@@ -246,7 +271,7 @@ class SettingsTab(QWidget):
 
         self.backups_label = QLabel()
         self.backups_label.setWordWrap(True)
-        self.backups_label.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.backups_label, "muted")
 
         open_backups = QPushButton("Open the backups folder")
         open_backups.clicked.connect(self._open_backups)
@@ -274,6 +299,11 @@ class SettingsTab(QWidget):
             self.round_software.setChecked(
                 self.repo.get_bool("rounding.apply_to_software", True)
             )
+
+            index = self.theme.findData(
+                self.repo.get_setting("display.theme") or theme.SYSTEM
+            )
+            self.theme.setCurrentIndex(max(0, index))
 
             configured_zone = self.repo.get_setting("display.timezone") or "system"
             index = self.timezone.findData(configured_zone)
@@ -337,6 +367,12 @@ class SettingsTab(QWidget):
         if last_workbook:
             lines.append(f"Last weekly backup taken on {last_workbook}.")
         self.backups_label.setText("\n".join(lines))
+
+    def _save_theme(self) -> None:
+        if self._loading:
+            return
+        self.repo.set_setting("display.theme", self.theme.currentData())
+        self.settings_changed.emit()
 
     def _describe_timezone(self) -> None:
         """Show what the chosen setting actually resolves to right now."""

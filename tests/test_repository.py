@@ -129,7 +129,7 @@ class TestTimers:
         soft_id = repo.start_timer(
             project,
             EntryKind.SOFTWARE,
-            software_name="PLAXIS 2D",
+            software_name="RS2",
             now=sast(2026, 9, 14, 9, 30),
         )
         assert len(repo.running_entries()) == 2
@@ -140,7 +140,7 @@ class TestTimers:
         repo.stop_timer(EntryKind.SOFTWARE, now=sast(2026, 9, 14, 18, 30))
         assert repo.get_entry(work_id).duration_seconds == 3 * 3600
         assert repo.get_entry(soft_id).duration_seconds == 9 * 3600
-        assert repo.get_entry(soft_id).software_name == "PLAXIS 2D"
+        assert repo.get_entry(soft_id).software_name == "RS2"
 
     def test_starting_a_second_work_timer_stops_the_first(self, repo, project):
         first = repo.start_timer(project, now=sast(2026, 9, 14, 9, 0))
@@ -157,7 +157,7 @@ class TestTimers:
 
     def test_a_work_timer_must_not_carry_a_package_name(self, repo, project):
         with pytest.raises(ValidationError):
-            repo.start_timer(project, EntryKind.WORK, software_name="PLAXIS")
+            repo.start_timer(project, EntryKind.WORK, software_name="RS2")
 
     def test_starting_a_timer_requires_a_project(self, repo):
         with pytest.raises(ValidationError):
@@ -198,13 +198,13 @@ class TestTimers:
         assert repo.last_work_entry().id == latest
 
     def test_software_names_are_remembered_for_the_dropdown(self, repo, project):
-        for name, hour in (("PLAXIS 2D", 9), ("RS2", 11), ("Leapfrog", 13)):
+        for name, hour in (("RS2", 9), ("Slide2", 11), ("Leapfrog", 13)):
             repo.start_timer(
                 project, EntryKind.SOFTWARE, software_name=name, now=sast(2026, 9, 14, hour)
             )
             repo.stop_timer(EntryKind.SOFTWARE, now=sast(2026, 9, 14, hour, 30))
         assert repo.software_names()[0] == "Leapfrog"  # most recent first
-        assert set(repo.software_names()) == {"PLAXIS 2D", "RS2", "Leapfrog"}
+        assert set(repo.software_names()) == {"RS2", "Slide2", "Leapfrog"}
 
 
 class TestManualEntriesAndTravel:
@@ -545,7 +545,7 @@ class TestQueries:
             EntryKind.SOFTWARE,
             started_at=sast(2026, 9, 15, 20, 0),
             ended_at=sast(2026, 9, 15, 23, 0),
-            software_name="PLAXIS 2D",
+            software_name="RS2",
         )
         assert repo.recorded_dates(_dt.date(2026, 9, 1), _dt.date(2026, 9, 30)) == set()
 
@@ -584,3 +584,79 @@ class TestProjectOrdering:
         second = repo.add_project("Zebra Project")
         first = repo.add_project("Alpha Project")
         assert [row["id"] for row in repo.list_projects()] == [first, second]
+
+
+class TestRemovingAProject:
+    """The one deliberate exception to "nothing is ever deleted".
+
+    It exists to undo a mistake - a typo, or a name pasted from the intranet
+    list that turned out not to be wanted. Anything with time against it
+    must be archived instead.
+    """
+
+    def test_a_project_with_no_time_can_be_removed(self, repo):
+        project_id = repo.add_project("Typo in the name")
+        assert repo.delete_project(project_id) == "Typo in the name"
+        assert repo.get_project(project_id) is None
+        assert repo.list_projects(include_archived=True) == []
+
+    def test_a_project_with_time_refuses_and_says_why(self, repo, project):
+        repo.add_manual_entry(
+            project, started_at=sast(2026, 9, 14, 9), ended_at=sast(2026, 9, 14, 11)
+        )
+        with pytest.raises(ValidationError) as caught:
+            repo.delete_project(project)
+        message = str(caught.value)
+        assert "1 entry" in message
+        assert "Mark done" in message
+        assert repo.get_project(project) is not None
+
+    def test_a_deleted_entry_still_counts_as_history(self, repo, project):
+        """Soft-deleted time was promised to be recoverable, so it protects
+        the project too."""
+        entry_id = repo.add_manual_entry(
+            project, started_at=sast(2026, 9, 14, 9), ended_at=sast(2026, 9, 14, 11)
+        )
+        repo.soft_delete_entry(entry_id)
+        with pytest.raises(ValidationError):
+            repo.delete_project(project)
+
+    def test_its_tasks_go_with_it(self, repo):
+        project_id = repo.add_project("Unwanted")
+        repo.add_task(project_id, "Something")
+        repo.delete_project(project_id)
+        assert repo.list_tasks(project_id, include_done=True) == []
+
+    def test_its_notes_and_submissions_go_with_it(self, repo):
+        import datetime as _dt
+
+        project_id = repo.add_project("Unwanted")
+        repo.set_description_override(project_id, _dt.date(2026, 9, 14), "note")
+        repo.mark_submitted(project_id, _dt.date(2026, 9, 1), _dt.date(2026, 9, 30))
+        repo.delete_project(project_id)
+        assert repo.get_daily_note(project_id, _dt.date(2026, 9, 14)) is None
+        assert repo.list_submissions(project_id) == []
+
+    def test_removing_one_leaves_the_others_alone(self, repo, project):
+        spare = repo.add_project("Pasted by mistake")
+        repo.add_manual_entry(
+            project, started_at=sast(2026, 9, 14, 9), ended_at=sast(2026, 9, 14, 11)
+        )
+        repo.delete_project(spare)
+        assert [row["id"] for row in repo.list_projects()] == [project]
+        assert len(repo.list_entries()) == 1
+
+    def test_removing_something_that_is_already_gone(self, repo):
+        with pytest.raises(ValidationError):
+            repo.delete_project(9999)
+
+    def test_the_count_includes_both_kinds_of_entry(self, repo, project):
+        assert repo.project_entry_count(project) == 0
+        first = repo.add_manual_entry(
+            project, started_at=sast(2026, 9, 14, 9), ended_at=sast(2026, 9, 14, 10)
+        )
+        repo.add_manual_entry(
+            project, started_at=sast(2026, 9, 14, 11), ended_at=sast(2026, 9, 14, 12)
+        )
+        repo.soft_delete_entry(first)
+        assert repo.project_entry_count(project) == 2

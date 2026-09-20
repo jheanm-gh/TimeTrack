@@ -18,7 +18,7 @@ def work(project_id, start, end, **kwargs) -> EntryCalc:
     return EntryCalc(project_id=project_id, kind=EntryKind.WORK, start=start, end=end, **kwargs)
 
 
-def software(project_id, start, end, name="PLAXIS 2D", **kwargs) -> EntryCalc:
+def software(project_id, start, end, name="RS2", **kwargs) -> EntryCalc:
     return EntryCalc(
         project_id=project_id,
         kind=EntryKind.SOFTWARE,
@@ -101,7 +101,7 @@ class TestWorkAndSoftwareAreIndependent:
         row = rows[0]
         assert row.work_hours_billed == Decimal("0.50")
         assert row.software_hours_billed > row.work_hours_billed
-        assert row.software_names == ("PLAXIS 2D",)
+        assert row.software_names == ("RS2",)
 
     def test_a_day_of_software_only_still_produces_a_row(self):
         entries = [software(1, sast(2026, 9, 14, 22, 0), sast(2026, 9, 14, 23, 0))]

@@ -12,17 +12,30 @@ remember them.
 
 ## Contents
 
-1. [Starting it](#starting-it)
-2. [First thing: add your projects](#first-thing-add-your-projects)
-3. [A normal day](#a-normal-day)
-4. [When you forget to start a timer](#when-you-forget-to-start-a-timer)
-5. [Logging a site trip](#logging-a-site-trip)
-6. [Filling in the intranet timesheet](#filling-in-the-intranet-timesheet)
-7. [How your hours are worked out](#how-your-hours-are-worked-out)
-8. [The spreadsheet](#the-spreadsheet)
-9. [Where your information lives](#where-your-information-lives)
-10. [If something goes wrong](#if-something-goes-wrong)
-11. [Settings worth knowing about](#settings-worth-knowing-about)
+1. [Light or dark](#light-or-dark)
+2. [Starting it](#starting-it)
+3. [First thing: add your projects](#first-thing-add-your-projects)
+4. [A normal day](#a-normal-day)
+5. [When you forget to start a timer](#when-you-forget-to-start-a-timer)
+6. [Logging a site trip](#logging-a-site-trip)
+7. [Filling in the intranet timesheet](#filling-in-the-intranet-timesheet)
+8. [How your hours are worked out](#how-your-hours-are-worked-out)
+9. [The spreadsheet](#the-spreadsheet)
+10. [Where your information lives](#where-your-information-lives)
+11. [If something goes wrong](#if-something-goes-wrong)
+12. [Settings worth knowing about](#settings-worth-knowing-about)
+
+---
+
+## Light or dark
+
+**Settings → Appearance → Theme.** Three choices: *Match this computer*
+(the default), *Light*, or *Dark*. It changes straight away — no restart.
+
+![Dark mode](docs/images/main-window-dark.png)
+
+The spreadsheet is always produced in light colours whichever you pick,
+because it gets printed and shared.
 
 ---
 
@@ -86,6 +99,14 @@ Everything else is optional but saves you effort later:
 analysis", "Design report" — select the project and use **Add task** on the
 right. You never have to use tasks.
 
+**Added one by mistake?** Select it and click **Remove**. It disappears for
+good, along with any tasks under it.
+
+The button only works on a project with **no time recorded against it** —
+otherwise removing it would take billable hours with it. If there is any time
+on it the button is greyed out, and hovering over it explains why. Use **Mark
+done** for anything you have actually worked on.
+
 **Finished with a project?** Select it and click **Mark done**. It disappears
 from the dropdowns so they stay short, but every hour you booked to it is
 kept, and it still appears in your spreadsheet. Tick **Show finished
@@ -117,13 +138,13 @@ You can type a description at any time — during, or long afterwards.
 The blue timer on the right is separate, and it runs **at the same time** as
 your work timer.
 
-Type or choose the package (PLAXIS 2D, RS2, GeoStudio, Leapfrog…) and click
+Type or choose the package (RS2, Slide2, GeoStudio, Leapfrog…) and click
 **Start software**. Names you've used before are remembered.
 
 Two things worth knowing:
 
 - Software hours and work hours are **added separately**, not subtracted from
-  each other. Sitting at the machine using PLAXIS for three hours is three
+  each other. Sitting at the machine using RS2 for three hours is three
   work hours *and* three software hours.
 - A software timer is **never** interrupted, questioned or stopped
   automatically. Leave an analysis running overnight and it records the whole
@@ -388,6 +409,7 @@ graphics component left out to keep the download small.
 
 | Setting | What it does |
 | ------- | ------------ |
+| **Theme** | Light, dark, or match Windows. Changes immediately. |
 | **Time zone** | Leave on *Use this computer's setting* unless you travel. |
 | **Round to / Direction** | How hours are rounded. Default: up, to the quarter hour. |
 | **Ask me about time when I have been away** | The idle question. Turn it off if it irritates you. |

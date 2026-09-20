@@ -41,7 +41,7 @@ def populated(repo, project):
         EntryKind.SOFTWARE,
         started_at=sast(2026, 9, 14, 20),
         ended_at=sast(2026, 9, 14, 23, 30),
-        software_name="PLAXIS 3D",
+        software_name="Leapfrog Geo",
     )
     repo.add_manual_entry(
         other, started_at=sast(2026, 9, 15, 9), ended_at=sast(2026, 9, 15, 12)

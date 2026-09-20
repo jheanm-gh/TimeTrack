@@ -23,6 +23,7 @@ from app.core.models import EntryKind
 from app.core.timeutil import format_hms
 from app.db.repository import Repository
 from app.ui import theme
+from app.ui.widgets import set_role
 
 
 class ChannelPanel(QFrame):
@@ -40,7 +41,7 @@ class ChannelPanel(QFrame):
 
         self.title = QLabel(title)
         self.title.setFont(theme.small_font())
-        self.title.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.title, "muted")
 
         self.what = QLabel("Not running")
         self.what.setFont(theme.heading_font(10))
@@ -71,7 +72,7 @@ class ChannelPanel(QFrame):
 
     def set_idle(self) -> None:
         self.what.setText("Not running")
-        self.what.setStyleSheet(f"color: {theme.MUTED.name()};")
+        set_role(self.what, "muted")
         self.elapsed.setText("0:00:00")
         self.elapsed.setStyleSheet(f"color: {theme.MUTED.name()};")
         self.pause_button.setEnabled(False)
@@ -81,7 +82,7 @@ class ChannelPanel(QFrame):
     def set_running(self, what: str, seconds: int, paused: bool) -> None:
         colour = theme.PAUSED if paused else self.accent
         self.what.setText(what + ("   (paused)" if paused else ""))
-        self.what.setStyleSheet(f"color: {theme.INK.name()};")
+        set_role(self.what, None)
         self.elapsed.setText(format_hms(seconds))
         self.elapsed.setStyleSheet(f"color: {colour.name()};")
         self.pause_button.setEnabled(True)
@@ -106,7 +107,7 @@ class NowStrip(QWidget):
         self.task = QComboBox()
         self.software = QComboBox()
         self.software.setEditable(True)
-        self.software.lineEdit().setPlaceholderText("Package, e.g. PLAXIS 2D")
+        self.software.lineEdit().setPlaceholderText("Package, e.g. RS2")
 
         self.start_button = QPushButton("Start work")
         self.start_button.setObjectName("primary")

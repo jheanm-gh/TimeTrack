@@ -117,7 +117,7 @@ class TestConstraints:
 
     def test_one_work_and_one_software_timer_may_run_together(self, repo, project):
         repo.start_timer(project)
-        repo.start_timer(project, "software", software_name="PLAXIS 2D")
+        repo.start_timer(project, "software", software_name="RS2")
         assert len(repo.running_entries()) == 2
 
     def test_a_work_entry_cannot_carry_a_package_name(self, conn):
@@ -132,7 +132,7 @@ class TestConstraints:
                 """
                 INSERT INTO time_entries (project_id, kind, software_name, started_at,
                                           source, created_at, updated_at)
-                VALUES (1, 'work', 'PLAXIS', ?, 'timer', ?, ?)
+                VALUES (1, 'work', 'RS2', ?, 'timer', ?, ?)
                 """,
                 (stamp, stamp, stamp),
             )

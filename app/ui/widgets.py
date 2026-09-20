@@ -29,6 +29,21 @@ ID_ROLE = Qt.ItemDataRole.UserRole + 1
 SORT_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
+def set_role(widget, role: str | None) -> None:
+    """Tag a widget so the stylesheet colours it.
+
+    Inline ``setStyleSheet("color: ...")`` survives a theme change and leaves
+    the old colour behind, which on a dark background means grey-on-grey. A
+    role is a property the stylesheet selects on, so swapping the stylesheet
+    repaints every tagged widget at once.
+    """
+    widget.setProperty("role", role)
+    # Qt only re-evaluates property selectors when the style is refreshed.
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()
+
+
 class SortableItem(QTableWidgetItem):
     """A cell that sorts by a stored key rather than by its displayed text.
 
@@ -178,22 +193,19 @@ class Banner(QWidget):
         tone: str = "warning",
     ) -> None:
         super().__init__(parent)
-        background = (
-            theme.OVERDUE_BACKGROUND if tone == "danger" else theme.BANNER_BACKGROUND
-        )
-        border = theme.DANGER.name() if tone == "danger" else theme.BANNER_BORDER
-        # Scoped by object name: an unscoped "QWidget { ... }" rule would
-        # repaint the banner's own buttons with the banner's background and
-        # border, which looks like a rendering fault.
+        # Styled from the application stylesheet by object name and tone,
+        # not inline: an inline rule would survive a theme switch and leave
+        # a pale banner sitting on a dark window.
         self.setObjectName("TimeTrackBanner")
-        self.setStyleSheet(
-            f"QWidget#TimeTrackBanner {{ background: {background};"
-            f" border: 1px solid {border}; border-radius: 4px; }}"
-        )
+        self.setProperty("tone", tone)
+        # A plain QWidget ignores background and border from a stylesheet
+        # unless this is set. It worked while the rule lived on the widget
+        # itself; moving it to the application stylesheet made the banner
+        # silently lose its colour.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         self.label = QLabel(text)
         self.label.setWordWrap(True)
-        self.label.setStyleSheet("border: none;")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 6, 6)

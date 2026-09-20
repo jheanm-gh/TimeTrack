@@ -80,7 +80,7 @@ def away_and_back(service, away_seconds: int, worked_first: int = 1800) -> list:
 class TestChannels:
     def test_work_and_software_run_independently(self, service, project):
         service.start_work(project)
-        service.start_software(project, "PLAXIS 2D")
+        service.start_software(project, "RS2")
         assert service.is_running(EntryKind.WORK)
         assert service.is_running(EntryKind.SOFTWARE)
 
@@ -154,14 +154,14 @@ class TestIdleDetection:
 
     def test_the_prompt_never_fires_for_the_software_channel(self, service, project):
         """Acceptance checklist 7: an unattended analysis is left alone."""
-        service.start_software(project, "PLAXIS 3D")
+        service.start_software(project, "Leapfrog Geo")
         assert away_and_back(service, 3600) == []
         assert service.is_running(EntryKind.SOFTWARE)  # and never stopped
 
     def test_a_software_timer_survives_an_hour_of_no_keyboard_activity(
         self, service, project
     ):
-        service.start_software(project, "PLAXIS 3D")
+        service.start_software(project, "Leapfrog Geo")
         for _ in range(120):  # an hour of thirty-second polls
             service.fake_clock.advance(30)
             service.fake_idle.seconds += 30

@@ -55,11 +55,11 @@ class TestNowStrip:
 
     def test_both_channels_can_run_at_once(self, window, repo, project):
         window._start_work(project, None)  # noqa: SLF001
-        window._start_software(project, "PLAXIS 2D")  # noqa: SLF001
+        window._start_software(project, "RS2")  # noqa: SLF001
         window.now_strip.update_display(window.timers)
         assert window.timers.is_running(EntryKind.WORK)
         assert window.timers.is_running(EntryKind.SOFTWARE)
-        assert "PLAXIS 2D" in window.now_strip.software_panel.what.text()
+        assert "RS2" in window.now_strip.software_panel.what.text()
 
     def test_pausing_is_shown_on_the_panel(self, window, project):
         window._start_work(project, None)  # noqa: SLF001
@@ -217,13 +217,13 @@ class TestReviewTab:
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QColor
 
-        from app.ui.tab_review import COL_DATE, COL_TICK, NEXT_ROW_BACKGROUND
+        from app.ui.tab_review import COL_DATE, COL_TICK, next_row_background
 
         window.review_tab.table.item(0, COL_TICK).setCheckState(Qt.CheckState.Checked)
         window.review_tab.refresh()
 
         highlighted = window.review_tab.table.item(1, COL_DATE).background().color()
-        assert highlighted == QColor(NEXT_ROW_BACKGROUND)
+        assert highlighted == QColor(next_row_background())
 
     def test_a_written_description_replaces_the_generated_one(
         self, window, repo, project
@@ -418,3 +418,159 @@ class TestRunningTimerDisplay:
         )
         window.today_tab.refresh()
         assert window.today_tab.table.item(0, COL_DURATION).text() == "2:30"
+
+
+class TestRemovingProjectsFromTheList:
+    def _select_project(self, window, project_id):
+        from app.ui.tab_projects import COL_NAME
+        from app.ui.widgets import ID_ROLE
+
+        window.projects_tab.refresh()
+        table = window.projects_tab.table
+        for row in range(table.rowCount()):
+            if table.item(row, COL_NAME).data(ID_ROLE) == project_id:
+                table.selectRow(row)
+                return
+        raise AssertionError("project not in the table")
+
+    def test_the_remove_button_is_offered_for_an_unused_project(self, window, repo):
+        spare = repo.add_project("Pasted by mistake")
+        self._select_project(window, spare)
+        assert window.projects_tab.remove_button.isEnabled()
+
+    def test_it_is_disabled_for_a_project_with_time_on_it(self, window, repo, project):
+        repo.add_manual_entry(
+            project, started_at=at(repo, 9), ended_at=at(repo, 11)
+        )
+        self._select_project(window, project)
+        assert not window.projects_tab.remove_button.isEnabled()
+        assert "Mark done" in window.projects_tab.remove_button.toolTip()
+
+    def test_removing_takes_it_off_the_list(self, window, repo, monkeypatch):
+        from PySide6.QtWidgets import QMessageBox
+
+        spare = repo.add_project("Pasted by mistake")
+        self._select_project(window, spare)
+        monkeypatch.setattr(
+            QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes
+        )
+        window.projects_tab.remove_project()
+
+        assert repo.get_project(spare) is None
+        assert window.projects_tab.table.rowCount() == 0
+
+    def test_saying_no_keeps_it(self, window, repo, monkeypatch):
+        from PySide6.QtWidgets import QMessageBox
+
+        spare = repo.add_project("Pasted by mistake")
+        self._select_project(window, spare)
+        monkeypatch.setattr(
+            QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No
+        )
+        window.projects_tab.remove_project()
+        assert repo.get_project(spare) is not None
+
+
+class TestTheme:
+    def test_the_picker_offers_system_light_and_dark(self, window):
+        picker = window.settings_tab.theme
+        assert [picker.itemData(i) for i in range(picker.count())] == [
+            "system",
+            "light",
+            "dark",
+        ]
+
+    def test_choosing_dark_applies_it(self, window, repo, qapp):
+        from app.ui import theme
+
+        picker = window.settings_tab.theme
+        picker.setCurrentIndex(picker.findData(theme.DARK))
+
+        assert repo.get_setting("display.theme") == theme.DARK
+        assert theme.current_theme() == theme.DARK
+        assert theme.PALETTES[theme.DARK]["panel"] in qapp.styleSheet()
+
+    def test_switching_back_to_light_repaints(self, window, repo, qapp):
+        from app.ui import theme
+
+        picker = window.settings_tab.theme
+        picker.setCurrentIndex(picker.findData(theme.DARK))
+        picker.setCurrentIndex(picker.findData(theme.LIGHT))
+
+        assert theme.current_theme() == theme.LIGHT
+        assert theme.PALETTES[theme.LIGHT]["panel"] in qapp.styleSheet()
+
+    def test_notes_are_styled_by_role_so_they_follow_the_theme(self, window):
+        """An inline colour would survive the switch and leave grey on grey."""
+        hint = window.today_tab.findChild(type(window.status_left))
+        roles = [
+            child.property("role")
+            for child in window.settings_tab.findChildren(type(window.status_left))
+        ]
+        assert "muted" in roles
+
+
+class TestBannerAppearance:
+    def test_the_banner_paints_its_own_background(self, qapp):
+        """A plain QWidget ignores a stylesheet background unless asked to,
+        which silently made the catch-up banner colourless."""
+        from PySide6.QtCore import Qt
+
+        from app.ui.widgets import Banner
+
+        banner = Banner("6 weekdays have no time logged", "Show me")
+        assert banner.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        assert banner.objectName() == "TimeTrackBanner"
+
+    def test_the_tone_is_a_property_the_stylesheet_can_select(self, qapp):
+        from app.ui.widgets import Banner
+
+        assert Banner("x", tone="danger").property("tone") == "danger"
+        assert Banner("x").property("tone") == "warning"
+
+    def test_both_tones_appear_in_the_stylesheet(self, qapp):
+        from app.ui import theme
+
+        sheet = theme.stylesheet()
+        assert "QWidget#TimeTrackBanner" in sheet
+        assert 'QWidget#TimeTrackBanner[tone="danger"]' in sheet
+
+
+def test_windows_do_not_accumulate_between_tests(qapp, repo, tmp_path, monkeypatch):
+    """Guards the fixture teardown.
+
+    Qt holds DeferredDelete events until the event loop that posted them
+    returns, so a queued deleteLater() never fires in a test. Every window
+    then stays alive and every stylesheet change has to re-polish all of
+    them, which turned a 0.2 second theme switch into nineteen seconds.
+    """
+    from PySide6.QtCore import QCoreApplication, QEvent, QSettings
+    from PySide6.QtWidgets import QApplication
+
+    from app.ui.main_window import MainWindow
+
+    monkeypatch.setattr(QSettings, "value", lambda self, *a, **k: None, raising=False)
+    monkeypatch.setattr(QSettings, "setValue", lambda self, *a, **k: None, raising=False)
+    repo.set_setting("workbook.path", str(tmp_path / "workbook"))
+
+    def build_and_drop():
+        window = MainWindow(repo)
+        window.autosave.synchronous = True
+        window.timers.shutdown()
+        window.autosave.shutdown()
+        window.tray.hide()
+        window.hide()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
+
+    build_and_drop()
+    after_first = len(QApplication.allWidgets())
+    for _ in range(3):
+        build_and_drop()
+    after_more = len(QApplication.allWidgets())
+
+    # A few stragglers are tolerable; three more whole windows are not.
+    assert after_more - after_first < 100, (
+        f"widgets grew from {after_first} to {after_more} over three windows"
+    )

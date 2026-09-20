@@ -88,12 +88,12 @@ class TestTimesheetSheet:
             EntryKind.SOFTWARE,
             started_at=sast(2026, 9, 14, 20),
             ended_at=sast(2026, 9, 14, 23, 30),
-            software_name="PLAXIS 3D",
+            software_name="Leapfrog Geo",
         )
         row = gather(repo, today=TODAY).timesheet[0]
         assert row.hours_billed == Decimal("1.00")
         assert row.software_billed == Decimal("3.50")
-        assert row.software_used == "PLAXIS 3D"
+        assert row.software_used == "Leapfrog Geo"
 
 
 class TestTravelSheet:

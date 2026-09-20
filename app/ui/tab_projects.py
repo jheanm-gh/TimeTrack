@@ -78,17 +78,24 @@ class ProjectsTab(QWidget):
         bulk = QPushButton("Add several (paste a list)")
         edit = QPushButton("Edit")
         self.archive_button = QPushButton("Mark done")
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.setToolTip(
+            "Permanently remove a project that has no time recorded against "
+            "it. Use 'Mark done' for one you have worked on."
+        )
 
         add.clicked.connect(self.add_project)
         bulk.clicked.connect(self.bulk_add)
         edit.clicked.connect(self.edit_project)
         self.archive_button.clicked.connect(self.toggle_archived)
+        self.remove_button.clicked.connect(self.remove_project)
 
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(bulk)
         buttons.addWidget(edit)
         buttons.addWidget(self.archive_button)
+        buttons.addWidget(self.remove_button)
         buttons.addStretch(1)
         buttons.addWidget(self.show_archived)
 
@@ -254,6 +261,20 @@ class ProjectsTab(QWidget):
                 self.archive_button.setText(
                     "Bring back" if project["status"] == "archived" else "Mark done"
                 )
+            # Removing is only ever offered for a project with no history,
+            # so the button is disabled rather than the refusal coming as a
+            # surprise after the click.
+            has_history = self.repo.project_entry_count(project_id) > 0
+            self.remove_button.setEnabled(not has_history)
+            self.remove_button.setToolTip(
+                "This project has time recorded against it. Use 'Mark done' "
+                "instead - it keeps every hour."
+                if has_history
+                else "Permanently remove this project. It has no time "
+                "recorded against it."
+            )
+        else:
+            self.remove_button.setEnabled(False)
         self.refresh_tasks()
 
     def refresh_tasks(self) -> None:
@@ -360,6 +381,36 @@ class ProjectsTab(QWidget):
                 return
             self.repo.archive_project(project_id)
 
+        self.refresh()
+        self.data_changed.emit()
+
+    def remove_project(self) -> None:
+        """Delete a project outright - only ever one with no time on it."""
+        project_id = self.selected_project_id()
+        if project_id is None:
+            warn(self, "Select a project first.")
+            return
+        project = self.repo.get_project(project_id)
+        if project is None:
+            return
+
+        confirmed = QMessageBox.question(
+            self,
+            "Remove this project?",
+            f"'{project['name']}' will be removed from the list for good, "
+            "along with any tasks under it.\n\nThere is no time recorded "
+            "against it, so nothing billable is lost. This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmed != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self.repo.delete_project(project_id)
+        except ValidationError as exc:
+            warn(self, str(exc))
+            return
         self.refresh()
         self.data_changed.emit()
 

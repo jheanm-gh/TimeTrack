@@ -49,6 +49,8 @@ QUOTED_LABELS = [
     "Ends after midnight",
     "Save workbook now",
     "Stop all timers",
+    "Remove",
+    "Theme",
 ]
 
 

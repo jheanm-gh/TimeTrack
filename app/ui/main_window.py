@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(theme.app_icon())
-        self.setStyleSheet(theme.STYLE_SHEET)
+        self.apply_theme()
 
         self._build()
         self._wire()
@@ -195,10 +195,33 @@ class MainWindow(QMainWindow):
         self.now_strip.update_display(self.timers)
         self._update_tray()
 
+    def apply_theme(self) -> None:
+        """Set the palette from the stored setting, window-wide.
+
+        The stylesheet goes on the application rather than the window so
+        that dialogs, menus and the tray menu are themed too - a dark window
+        opening a white dialog is worse than not offering dark at all.
+        """
+        from PySide6.QtWidgets import QApplication
+
+        theme.set_theme(self.repo.get_setting("display.theme", theme.SYSTEM))
+        sheet = theme.stylesheet()
+        application = QApplication.instance()
+        target = application if application is not None else self
+        # Assigning a stylesheet makes Qt re-polish every widget in the
+        # application, so skip it when nothing actually changed - settings
+        # are saved on every keystroke in some fields.
+        if target.styleSheet() != sheet:
+            target.setStyleSheet(sheet)
+
     def _on_settings_changed(self) -> None:
         self.timers.reload_settings()
         self.autosave.reload_settings()
+        self.apply_theme()
+        # Table cells carry their own colours, so they are only re-coloured
+        # when the tables are rebuilt.
         self.refresh_all()
+        self.now_strip.update_display(self.timers)
 
     def _update_tray(self) -> None:
         work = self.timers.running(EntryKind.WORK)
