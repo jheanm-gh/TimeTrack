@@ -17,8 +17,11 @@ set BUILD_EXIT=%ERRORLEVEL%
 if not "%BUILD_EXIT%"=="0" (
     echo.
     echo The build did not finish. The reason is above.
+    echo.
+    REM Pause only on failure. A pause after a successful build swallows
+    REM the first character of whatever is typed next, which turns the
+    REM following "git pull" into "it pull" and a baffling error.
+    pause
 )
 
-echo.
-pause
 exit /b %BUILD_EXIT%
